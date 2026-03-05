@@ -1,0 +1,295 @@
+---
+title: "Daily"
+description: "Core initialization and device management class"
+---
+
+The `Daily` class provides static methods for initializing the SDK, managing logging, and creating virtual media devices.
+
+## init()
+
+Initializes the Daily SDK. Must be called before creating any `CallClient` instances.
+
+```python
+from daily import Daily, LogLevel
+
+Daily.init(worker_threads=2, log_level=LogLevel.Info)
+```
+
+### Parameters
+
+<ParamField path="worker_threads" type="int" default="2">
+  Number of worker threads to use for media processing.
+</ParamField>
+
+<ParamField path="log_level" type="LogLevel" default="LogLevel.Off">
+  Initial logging level. Can be one of: `LogLevel.Off`, `LogLevel.Error`, `LogLevel.Warn`, `LogLevel.Info`, `LogLevel.Debug`, `LogLevel.Trace`.
+</ParamField>
+
+### Returns
+
+<ResponseField type="None">
+  This method does not return a value.
+</ResponseField>
+
+---
+
+## deinit()
+
+Cleans up and shuts down the Daily SDK. Should be called when your application is done using Daily.
+
+```python
+Daily.deinit()
+```
+
+### Returns
+
+<ResponseField type="None">
+  This method does not return a value.
+</ResponseField>
+
+---
+
+## set_log_level()
+
+Changes the SDK logging level at runtime.
+
+```python
+from daily import Daily, LogLevel
+
+Daily.set_log_level(LogLevel.Debug)
+```
+
+### Parameters
+
+<ParamField path="log_level" type="LogLevel" required>
+  New logging level. Can be one of: `LogLevel.Off`, `LogLevel.Error`, `LogLevel.Warn`, `LogLevel.Info`, `LogLevel.Debug`, `LogLevel.Trace`.
+</ParamField>
+
+### Returns
+
+<ResponseField type="None">
+  This method does not return a value.
+</ResponseField>
+
+---
+
+## create_camera_device()
+
+Creates a virtual camera device for streaming video into a Daily call.
+
+```python
+from daily import Daily
+
+camera = Daily.create_camera_device(
+    device_name="my-camera",
+    width=1280,
+    height=720,
+    color_format="RGBA"
+)
+
+# Write frames to the camera
+camera.write_frame(frame_bytes)
+```
+
+### Parameters
+
+<ParamField path="device_name" type="str" required>
+  Name identifier for the virtual camera device.
+</ParamField>
+
+<ParamField path="width" type="int" required>
+  Width of the video frames in pixels.
+</ParamField>
+
+<ParamField path="height" type="int" required>
+  Height of the video frames in pixels.
+</ParamField>
+
+<ParamField path="color_format" type="str" default="RGBA">
+  Color format for video frames. Supported formats include "RGBA", "RGB", "BGRA", "BGR".
+</ParamField>
+
+### Returns
+
+<ResponseField type="VirtualCameraDevice">
+  A virtual camera device instance that can be used to write video frames.
+</ResponseField>
+
+---
+
+## create_speaker_device()
+
+Creates a virtual speaker device for receiving audio output from a Daily call.
+
+```python
+from daily import Daily
+
+speaker = Daily.create_speaker_device(
+    device_name="my-speaker",
+    sample_rate=16000,
+    channels=1,
+    non_blocking=False
+)
+
+# Read audio frames from the speaker
+audio_data = speaker.read_frames(num_frames=160)
+```
+
+### Parameters
+
+<ParamField path="device_name" type="str" required>
+  Name identifier for the virtual speaker device.
+</ParamField>
+
+<ParamField path="sample_rate" type="int" default="16000">
+  Audio sample rate in Hz (e.g., 16000, 24000, 48000).
+</ParamField>
+
+<ParamField path="channels" type="int" default="1">
+  Number of audio channels (1 for mono, 2 for stereo).
+</ParamField>
+
+<ParamField path="non_blocking" type="bool" default="False">
+  If `True`, read operations will not block when no audio is available.
+</ParamField>
+
+### Returns
+
+<ResponseField type="VirtualSpeakerDevice">
+  A virtual speaker device instance that can be used to read audio frames.
+</ResponseField>
+
+---
+
+## create_microphone_device()
+
+Creates a virtual microphone device for streaming audio into a Daily call.
+
+```python
+from daily import Daily
+
+mic = Daily.create_microphone_device(
+    device_name="my-microphone",
+    sample_rate=16000,
+    channels=1,
+    non_blocking=False
+)
+
+# Write audio frames to the microphone
+mic.write_frames(audio_bytes)
+```
+
+### Parameters
+
+<ParamField path="device_name" type="str" required>
+  Name identifier for the virtual microphone device.
+</ParamField>
+
+<ParamField path="sample_rate" type="int" default="16000">
+  Audio sample rate in Hz (e.g., 16000, 24000, 48000).
+</ParamField>
+
+<ParamField path="channels" type="int" default="1">
+  Number of audio channels (1 for mono, 2 for stereo).
+</ParamField>
+
+<ParamField path="non_blocking" type="bool" default="False">
+  If `True`, write operations will not block when the buffer is full.
+</ParamField>
+
+### Returns
+
+<ResponseField type="VirtualMicrophoneDevice">
+  A virtual microphone device instance that can be used to write audio frames.
+</ResponseField>
+
+---
+
+## create_native_vad()
+
+Creates a native Voice Activity Detection (VAD) analyzer for detecting speech in audio.
+
+```python
+from daily import Daily
+
+vad = Daily.create_native_vad(
+    reset_period_ms=500,
+    sample_rate=16000,
+    channels=1
+)
+
+# Analyze audio frames
+confidence = vad.analyze_frames(audio_bytes)
+if confidence > 0.5:
+    print("Speech detected!")
+```
+
+### Parameters
+
+<ParamField path="reset_period_ms" type="int" default="500">
+  Period in milliseconds after which VAD state resets.
+</ParamField>
+
+<ParamField path="sample_rate" type="int" default="16000">
+  Audio sample rate in Hz (e.g., 16000, 24000, 48000).
+</ParamField>
+
+<ParamField path="channels" type="int" default="1">
+  Number of audio channels (1 for mono, 2 for stereo).
+</ParamField>
+
+### Returns
+
+<ResponseField type="NativeVad">
+  A native VAD analyzer instance that can detect voice activity in audio frames.
+</ResponseField>
+
+---
+
+## select_speaker_device()
+
+Selects a specific speaker device for audio output.
+
+```python
+from daily import Daily
+
+Daily.select_speaker_device("my-speaker")
+```
+
+### Parameters
+
+<ParamField path="device_name" type="str" required>
+  Name of the speaker device to select for audio output.
+</ParamField>
+
+### Returns
+
+<ResponseField type="None">
+  This method does not return a value.
+</ResponseField>
+
+---
+
+## Complete Example
+
+```python
+from daily import Daily, LogLevel, CallClient
+
+# Initialize the SDK
+Daily.init(worker_threads=4, log_level=LogLevel.Info)
+
+# Create virtual devices
+camera = Daily.create_camera_device("bot-camera", 1280, 720)
+mic = Daily.create_microphone_device("bot-mic", sample_rate=16000)
+speaker = Daily.create_speaker_device("bot-speaker", sample_rate=16000)
+
+# Create and use call client
+client = CallClient()
+client.join("https://your-domain.daily.co/room-name")
+
+# ... use the devices during the call ...
+
+# Clean up
+client.leave()
+Daily.deinit()
+```

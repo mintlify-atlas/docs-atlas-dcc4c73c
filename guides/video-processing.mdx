@@ -1,0 +1,451 @@
+---
+title: "Video Processing"
+description: "Learn how to process and manipulate video streams in the Daily Python SDK"
+---
+
+## Overview
+
+The Daily Python SDK provides comprehensive video processing capabilities, allowing you to capture, process, and send video frames in real-time. This guide covers video renderers, virtual camera devices, color formats, and frame manipulation.
+
+## Video Renderers
+
+Video renderers allow you to receive and process video frames from participants in real-time.
+
+### Setting a Video Renderer
+
+Use `set_video_renderer()` to register a callback that receives video frames:
+
+```python
+from daily import CallClient, VideoFrame
+
+def video_callback(participant_id: str, video_frame: VideoFrame, source: str):
+    # Process video frame
+    print(f"Received frame from {participant_id}")
+    print(f"Width: {video_frame.width}")
+    print(f"Height: {video_frame.height}")
+    print(f"Color format: {video_frame.color_format}")
+    print(f"Timestamp: {video_frame.timestamp_us}")
+    
+    # Get raw frame data as bytes
+    frame_data = video_frame.buffer
+
+client = CallClient()
+client.set_video_renderer(
+    participant_id="participant-id",
+    callback=video_callback,
+    video_source="camera",  # or "screenVideo"
+    color_format="RGBA"  # or "RGB", "I420", "NV12"
+)
+```
+
+### VideoFrame Properties
+
+The `VideoFrame` class provides access to video frame data and metadata:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `buffer` | `bytes` | Raw video frame data as bytes |
+| `width` | `int` | Frame width in pixels |
+| `height` | `int` | Frame height in pixels |
+| `timestamp_us` | `int` | Frame timestamp in microseconds |
+| `color_format` | `str` | Color format ("RGBA", "RGB", "I420", "NV12") |
+
+## Color Formats
+
+The SDK supports multiple color formats for video processing:
+
+### RGBA
+
+RGBA format with 8 bits per channel (32 bits per pixel):
+- **Use case**: General purpose, works with most image libraries
+- **Size**: `width × height × 4 bytes`
+- **Layout**: Red, Green, Blue, Alpha channels
+
+```python
+client.set_video_renderer(
+    participant_id="participant-id",
+    callback=video_callback,
+    color_format="RGBA"
+)
+```
+
+### RGB
+
+RGB format with 8 bits per channel (24 bits per pixel):
+- **Use case**: Image processing without alpha channel
+- **Size**: `width × height × 3 bytes`
+- **Layout**: Red, Green, Blue channels
+
+```python
+client.set_video_renderer(
+    participant_id="participant-id",
+    callback=video_callback,
+    color_format="RGB"
+)
+```
+
+### I420
+
+YUV planar format with 4:2:0 chroma subsampling:
+- **Use case**: Video encoding, efficient storage
+- **Size**: `width × height × 1.5 bytes`
+- **Layout**: Y plane (full resolution), U and V planes (quarter resolution each)
+
+### NV12
+
+YUV semi-planar format with 4:2:0 chroma subsampling:
+- **Use case**: Hardware video processing, efficient GPU operations
+- **Size**: `width × height × 1.5 bytes`
+- **Layout**: Y plane (full resolution), interleaved UV plane (half resolution)
+
+<Tip>
+Use RGB/RGBA for Python image processing libraries (PIL, OpenCV). Use I420/NV12 for video encoding or when working with hardware acceleration.
+</Tip>
+
+## Virtual Camera Device
+
+Virtual camera devices allow you to send custom video frames into a call.
+
+### Creating a Virtual Camera
+
+```python
+from daily import Daily
+
+# Create a virtual camera device
+camera = Daily.create_camera_device(
+    device_name="my-camera",
+    width=1280,
+    height=720,
+    color_format="RGB"  # or "RGBA"
+)
+```
+
+### VirtualCameraDevice Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `name` | `str` | Device name |
+| `width` | `int` | Frame width in pixels |
+| `height` | `int` | Frame height in pixels |
+| `color_format` | `str` | Color format ("RGB" or "RGBA") |
+
+### Writing Video Frames
+
+Send video frames using `write_frame()`:
+
+```python
+# frame_bytes must match the camera's dimensions and color format
+camera.write_frame(frame_bytes)
+```
+
+<Warning>
+The frame data must exactly match the configured dimensions and color format. For RGB: `width × height × 3 bytes`. For RGBA: `width × height × 4 bytes`.
+</Warning>
+
+## Complete Examples
+
+### Sending Images to a Call
+
+Here's a complete example of sending an image repeatedly at a specified framerate:
+
+```python
+import time
+from daily import Daily, CallClient
+from PIL import Image
+
+class SendImageApp:
+    def __init__(self, image_file, framerate):
+        # Load image
+        self.__image = Image.open(image_file)
+        self.__framerate = framerate
+        
+        # Create virtual camera
+        self.__camera = Daily.create_camera_device(
+            "my-camera",
+            width=self.__image.width,
+            height=self.__image.height,
+            color_format="RGB"
+        )
+        
+        self.__client = CallClient()
+        
+    def run(self, meeting_url):
+        # Join with virtual camera
+        self.__client.join(
+            meeting_url,
+            client_settings={
+                "inputs": {
+                    "camera": {
+                        "isEnabled": True,
+                        "settings": {"deviceId": "my-camera"}
+                    },
+                    "microphone": False
+                }
+            }
+        )
+        
+        # Send frames
+        self.send_image()
+        
+    def send_image(self):
+        sleep_time = 1.0 / self.__framerate
+        image_bytes = self.__image.tobytes()
+        
+        while not self.__app_quit:
+            self.__camera.write_frame(image_bytes)
+            time.sleep(sleep_time)
+
+# Initialize and run
+Daily.init()
+app = SendImageApp("background.jpg", framerate=30)
+app.run("https://your-domain.daily.co/room-name")
+```
+
+### Processing Video Frames with OpenCV
+
+Process incoming video frames using OpenCV:
+
+```python
+import cv2
+import numpy as np
+from daily import CallClient, VideoFrame
+
+class VideoProcessor:
+    def __init__(self):
+        self.__client = CallClient()
+        
+    def video_callback(self, participant_id: str, video_frame: VideoFrame, source: str):
+        # Convert to numpy array
+        frame_data = np.frombuffer(
+            video_frame.buffer,
+            dtype=np.uint8
+        )
+        
+        # Reshape based on color format
+        if video_frame.color_format == "RGBA":
+            frame = frame_data.reshape(
+                (video_frame.height, video_frame.width, 4)
+            )
+            # Convert RGBA to BGR for OpenCV
+            frame = cv2.cvtColor(frame, cv2.COLOR_RGBA2BGR)
+        elif video_frame.color_format == "RGB":
+            frame = frame_data.reshape(
+                (video_frame.height, video_frame.width, 3)
+            )
+            # Convert RGB to BGR for OpenCV
+            frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+        
+        # Process frame (example: detect faces)
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        # ... your processing logic here
+        
+        # Save or display
+        cv2.imwrite(f"frame_{participant_id}.jpg", frame)
+    
+    def start(self, meeting_url):
+        # Set video renderer
+        self.__client.set_video_renderer(
+            participant_id="*",  # All participants
+            callback=self.video_callback,
+            video_source="camera",
+            color_format="RGB"
+        )
+        
+        self.__client.join(meeting_url)
+
+# Usage
+Daily.init()
+processor = VideoProcessor()
+processor.start("https://your-domain.daily.co/room-name")
+```
+
+### Saving Video Frames as Images
+
+Capture and save video frames to disk:
+
+```python
+from daily import CallClient, VideoFrame
+from PIL import Image
+import io
+
+class FrameCapture:
+    def __init__(self):
+        self.__client = CallClient()
+        self.__frame_count = 0
+        
+    def video_callback(self, participant_id: str, video_frame: VideoFrame, source: str):
+        # Create PIL Image from frame data
+        if video_frame.color_format == "RGB":
+            mode = "RGB"
+        elif video_frame.color_format == "RGBA":
+            mode = "RGBA"
+        else:
+            print(f"Unsupported format: {video_frame.color_format}")
+            return
+        
+        image = Image.frombytes(
+            mode,
+            (video_frame.width, video_frame.height),
+            video_frame.buffer
+        )
+        
+        # Save frame
+        filename = f"frame_{self.__frame_count:06d}.png"
+        image.save(filename)
+        self.__frame_count += 1
+        print(f"Saved {filename}")
+    
+    def start(self, meeting_url, participant_id):
+        self.__client.set_video_renderer(
+            participant_id=participant_id,
+            callback=self.video_callback,
+            video_source="camera",
+            color_format="RGB"
+        )
+        
+        self.__client.join(meeting_url)
+
+# Usage
+Daily.init()
+capture = FrameCapture()
+capture.start(
+    meeting_url="https://your-domain.daily.co/room-name",
+    participant_id="target-participant-id"
+)
+```
+
+### Generating Animated Content
+
+Create and send dynamically generated video content:
+
+```python
+import numpy as np
+import time
+from daily import Daily, CallClient
+
+class AnimatedVideoApp:
+    def __init__(self, width=640, height=480, fps=30):
+        self.__width = width
+        self.__height = height
+        self.__fps = fps
+        
+        # Create virtual camera
+        self.__camera = Daily.create_camera_device(
+            "animated-camera",
+            width=width,
+            height=height,
+            color_format="RGB"
+        )
+        
+        self.__client = CallClient()
+        self.__frame_number = 0
+        
+    def generate_frame(self):
+        # Generate a simple animated pattern
+        frame = np.zeros((self.__height, self.__width, 3), dtype=np.uint8)
+        
+        # Create moving gradient
+        offset = (self.__frame_number * 2) % self.__width
+        for x in range(self.__width):
+            color = int(255 * ((x + offset) % self.__width) / self.__width)
+            frame[:, x] = [color, 255 - color, 128]
+        
+        self.__frame_number += 1
+        return frame.tobytes()
+    
+    def send_frames(self):
+        sleep_time = 1.0 / self.__fps
+        
+        while not self.__app_quit:
+            frame_data = self.generate_frame()
+            self.__camera.write_frame(frame_data)
+            time.sleep(sleep_time)
+    
+    def run(self, meeting_url):
+        self.__client.join(
+            meeting_url,
+            client_settings={
+                "inputs": {
+                    "camera": {
+                        "isEnabled": True,
+                        "settings": {"deviceId": "animated-camera"}
+                    }
+                }
+            }
+        )
+        
+        self.send_frames()
+
+# Usage
+Daily.init()
+app = AnimatedVideoApp(width=1280, height=720, fps=30)
+app.run("https://your-domain.daily.co/room-name")
+```
+
+## Best Practices
+
+<Steps>
+  <Step title="Match color formats">
+    Ensure frame data matches the configured color format and dimensions exactly to avoid corruption or crashes.
+  </Step>
+  
+  <Step title="Maintain consistent framerate">
+    Send frames at a consistent rate (typically 15-30 fps) for smooth video playback.
+  </Step>
+  
+  <Step title="Choose appropriate resolution">
+    Balance quality and bandwidth: 640x480 for basic calls, 1280x720 for HD, 1920x1080 for full HD.
+  </Step>
+  
+  <Step title="Handle frame timing">
+    Use timestamps from `VideoFrame.timestamp_us` for accurate synchronization and processing.
+  </Step>
+  
+  <Step title="Clean up resources">
+    Release camera devices and call clients when done to free system resources.
+  </Step>
+</Steps>
+
+<Note>
+Video processing can be CPU-intensive. Consider using hardware acceleration or reducing resolution/framerate for resource-constrained environments.
+</Note>
+
+## Common Use Cases
+
+### Virtual Backgrounds
+
+Replace video backgrounds in real-time:
+```python
+def apply_virtual_background(video_frame: VideoFrame):
+    # Use segmentation to isolate person
+    # Replace background pixels
+    # Send modified frame through virtual camera
+    pass
+```
+
+### Screen Sharing with Overlays
+
+Add overlays or annotations to screen shares:
+```python
+def add_overlay(video_frame: VideoFrame):
+    # Draw text, shapes, or images on frame
+    # Send through virtual camera
+    pass
+```
+
+### Real-time Filters
+
+Apply filters or effects to video:
+```python
+def apply_filter(video_frame: VideoFrame):
+    # Apply blur, color grading, or artistic effects
+    # Send processed frame
+    pass
+```
+
+## Related Resources
+
+- [Audio Processing](/guides/audio-processing) - Learn about audio processing
+- [CallClient.set_video_renderer()](/api-reference/call-client#set_video_renderer)
+- [VideoFrame](/api-reference/classes#videoframe)
+- [VirtualCameraDevice](/api-reference/classes#virtualcameradevice)

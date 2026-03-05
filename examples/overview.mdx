@@ -1,0 +1,109 @@
+---
+title: "Examples Overview"
+description: "Explore the Daily Python SDK demos and learn how to build real-time audio and video applications"
+---
+
+The Daily Python SDK includes a comprehensive collection of working demos that demonstrate key features and integration patterns. These examples provide complete, runnable code that you can use as a starting point for your own applications.
+
+## Demo Categories
+
+The examples are organized into several categories:
+
+### Audio Bots
+Build voice-enabled applications with real-time audio processing:
+- **Audio Examples**: Send and receive RAW audio or WAV files
+- **Speech-to-Text**: Integration with Google Cloud Speech and Deepgram
+- **Text-to-Speech**: Generate voice from text using various TTS services
+- **PyAudio Integration**: Work with real microphones and speakers
+
+[View Audio Bot Examples →](/examples/audio-bots)
+
+### Video Applications
+Create video experiences with custom rendering and processing:
+- **GStreamer Media Player**: Stream video files into meetings
+- **Object Detection**: Real-time YOLO-based object detection
+- **GUI Applications**: Native Gtk and Qt video renderers
+- **Image Streaming**: Send static or dynamic images
+
+[View Video Applications →](/examples/video-applications)
+
+### Integrations
+Connect Daily with popular services and frameworks:
+- **OpenAI/DALL-E**: Voice-to-image generation
+- **Deepgram**: Advanced speech processing
+- **Google Cloud**: Speech-to-Text and Text-to-Speech
+- **Flask/Celery**: Multi-bot orchestration
+
+[View Integration Examples →](/examples/integrations)
+
+## Getting Started
+
+### Prerequisites
+
+All demos are located in the `demos/` directory of the [daily-python repository](https://github.com/daily-co/daily-python).
+
+### Setup
+
+1. **Create a virtual environment** (recommended):
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+2. **Install dependencies**:
+
+```bash
+pip3 install -r requirements.txt
+```
+
+3. **Install daily-python**:
+
+```bash
+pip3 install daily-python
+```
+
+<Note>
+The `daily-python` package is not included in `requirements.txt` and must be installed separately.
+</Note>
+
+### System Dependencies
+
+Some demos require additional system libraries:
+
+- **PyAudio**: Requires the `portaudio` library
+- **GStreamer**: Requires GStreamer development libraries
+- **Gtk/Qt**: Requires respective GUI toolkit libraries
+
+If you encounter installation errors, check the error messages for hints about missing system dependencies. You can also remove conflicting dependencies from `requirements.txt` if you don't need those specific demos.
+
+## Running Demos
+
+Each demo includes usage instructions in its header comments. Most demos follow this pattern:
+
+```bash
+python3 demo_name.py -m MEETING_URL [additional options]
+```
+
+### Example
+
+```bash
+python3 audio/wav_audio_send.py -m https://daily.co/your-room -i audio.wav
+```
+
+## Common Patterns
+
+All demos demonstrate these core concepts:
+
+1. **Initialization**: Calling `Daily.init()` before using the SDK
+2. **Virtual Devices**: Creating virtual microphones, speakers, and cameras
+3. **Client Setup**: Configuring and joining meetings with `CallClient`
+4. **Event Handling**: Using callbacks and event handlers for asynchronous operations
+5. **Cleanup**: Properly leaving meetings and releasing resources
+
+## Next Steps
+
+- Browse [Audio Bot Examples](/examples/audio-bots) for voice applications
+- Explore [Video Applications](/examples/video-applications) for video streaming
+- Check out [Integration Examples](/examples/integrations) for third-party services
+- View the full source code on [GitHub](https://github.com/daily-co/daily-python/tree/main/demos)

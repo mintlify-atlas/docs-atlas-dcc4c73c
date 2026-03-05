@@ -1,0 +1,508 @@
+---
+title: "Custom Tracks"
+description: "Learn how to add and manage custom audio tracks in the Daily Python SDK"
+---
+
+## Overview
+
+Custom audio tracks allow you to send additional audio streams beyond the standard microphone track. This is useful for playing background music, sound effects, pre-recorded audio, or any other custom audio source alongside your regular microphone audio.
+
+## Understanding Custom Tracks
+
+Custom tracks differ from standard microphone input in several ways:
+
+- **Multiple tracks**: Send multiple audio tracks simultaneously
+- **Custom sources**: Use any audio source, not just microphones
+- **Independent control**: Manage each track separately
+- **Audio level options**: Choose whether tracks affect active speaker detection
+
+## CustomAudioSource
+
+The `CustomAudioSource` class represents a source of audio data that you can write to.
+
+### Creating a Custom Audio Source
+
+```python
+from daily import CustomAudioSource
+
+# Create a custom audio source
+audio_source = CustomAudioSource(
+    sample_rate=16000,
+    channels=1  # mono
+)
+
+# Access properties
+print(f"Sample rate: {audio_source.sample_rate}")
+print(f"Channels: {audio_source.channels}")
+```
+
+### CustomAudioSource Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `sample_rate` | `int` | Audio sample rate in Hz |
+| `channels` | `int` | Number of audio channels (1 for mono, 2 for stereo) |
+
+### Writing Audio Frames
+
+Use `write_frames()` to send audio data:
+
+```python
+# Write audio frames (synchronous)
+frames_written = audio_source.write_frames(audio_bytes)
+print(f"Wrote {frames_written} frames")
+
+# Write audio frames (asynchronous with callback)
+def on_write_complete(frames_written):
+    print(f"Async write complete: {frames_written} frames")
+
+audio_source.write_frames(audio_bytes, completion=on_write_complete)
+```
+
+## CustomAudioTrack
+
+The `CustomAudioTrack` class wraps a `CustomAudioSource` and provides a track ID.
+
+### Creating a Custom Audio Track
+
+```python
+from daily import CustomAudioSource, CustomAudioTrack
+
+# Create source
+audio_source = CustomAudioSource(sample_rate=16000, channels=1)
+
+# Create track from source
+audio_track = CustomAudioTrack(audio_source=audio_source)
+
+# Get track ID
+print(f"Track ID: {audio_track.id}")
+```
+
+## Adding Custom Tracks to a Call
+
+Use `add_custom_audio_track()` to add a custom audio track to your call:
+
+```python
+from daily import CallClient, CustomAudioSource, CustomAudioTrack
+
+client = CallClient()
+
+# Create custom audio source and track
+audio_source = CustomAudioSource(sample_rate=16000, channels=1)
+audio_track = CustomAudioTrack(audio_source=audio_source)
+
+def on_track_added(error):
+    if error:
+        print(f"Failed to add track: {error}")
+    else:
+        print("Custom track added successfully")
+
+# Add the track
+client.add_custom_audio_track(
+    track_name="background-music",
+    audio_track=audio_track,
+    ignore_audio_level=True,  # Don't affect active speaker detection
+    completion=on_track_added
+)
+```
+
+### Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `track_name` | `str` | Unique name for the track |
+| `audio_track` | `CustomAudioTrack` | The custom audio track to add |
+| `ignore_audio_level` | `bool` | If `True`, track won't affect active speaker detection |
+| `completion` | `Callable` | Callback called when operation completes |
+
+<Note>
+Set `ignore_audio_level=True` for background music or sound effects to prevent them from triggering active speaker events.
+</Note>
+
+## Updating Custom Tracks
+
+Update an existing custom audio track:
+
+```python
+# Create new source and track
+new_source = CustomAudioSource(sample_rate=48000, channels=2)
+new_track = CustomAudioTrack(audio_source=new_source)
+
+def on_track_updated(error):
+    if error:
+        print(f"Failed to update track: {error}")
+    else:
+        print("Track updated successfully")
+
+client.update_custom_audio_track(
+    track_name="background-music",
+    audio_track=new_track,
+    ignore_audio_level=True,
+    completion=on_track_updated
+)
+```
+
+## Removing Custom Tracks
+
+Remove a custom audio track when no longer needed:
+
+```python
+def on_track_removed(error):
+    if error:
+        print(f"Failed to remove track: {error}")
+    else:
+        print("Track removed successfully")
+
+client.remove_custom_audio_track(
+    track_name="background-music",
+    completion=on_track_removed
+)
+```
+
+## Complete Examples
+
+### Playing Background Music
+
+Add background music to a call:
+
+```python
+import wave
+import threading
+from daily import Daily, CallClient, CustomAudioSource, CustomAudioTrack
+
+class BackgroundMusicPlayer:
+    def __init__(self, music_file, sample_rate=16000, channels=1):
+        self.__music_file = music_file
+        self.__sample_rate = sample_rate
+        self.__channels = channels
+        
+        # Create audio source and track
+        self.__audio_source = CustomAudioSource(
+            sample_rate=sample_rate,
+            channels=channels
+        )
+        self.__audio_track = CustomAudioTrack(
+            audio_source=self.__audio_source
+        )
+        
+        self.__client = CallClient()
+        self.__playing = False
+        self.__thread = None
+    
+    def start(self, meeting_url):
+        # Join the meeting
+        self.__client.join(meeting_url)
+        
+        # Add custom track for background music
+        self.__client.add_custom_audio_track(
+            track_name="background-music",
+            audio_track=self.__audio_track,
+            ignore_audio_level=True  # Don't trigger active speaker
+        )
+        
+        # Start playing music
+        self.__playing = True
+        self.__thread = threading.Thread(target=self.__play_music)
+        self.__thread.start()
+    
+    def __play_music(self):
+        wav = wave.open(self.__music_file, "rb")
+        
+        while self.__playing:
+            # Read 100ms worth of audio
+            frames = wav.readframes(int(self.__sample_rate / 10))
+            
+            if len(frames) == 0:
+                # Loop the music
+                wav.rewind()
+                continue
+            
+            self.__audio_source.write_frames(frames)
+        
+        wav.close()
+    
+    def stop(self):
+        self.__playing = False
+        if self.__thread:
+            self.__thread.join()
+        
+        # Remove the custom track
+        self.__client.remove_custom_audio_track("background-music")
+        self.__client.leave()
+
+# Usage
+Daily.init()
+player = BackgroundMusicPlayer("background.wav")
+player.start("https://your-domain.daily.co/room-name")
+```
+
+### Sound Effects Player
+
+Play sound effects on demand:
+
+```python
+import wave
+import threading
+from daily import Daily, CallClient, CustomAudioSource, CustomAudioTrack
+from queue import Queue
+
+class SoundEffectsPlayer:
+    def __init__(self, sample_rate=16000, channels=1):
+        self.__sample_rate = sample_rate
+        self.__channels = channels
+        
+        # Create audio source and track
+        self.__audio_source = CustomAudioSource(
+            sample_rate=sample_rate,
+            channels=channels
+        )
+        self.__audio_track = CustomAudioTrack(
+            audio_source=self.__audio_source
+        )
+        
+        self.__client = CallClient()
+        self.__sound_queue = Queue()
+        self.__playing = False
+        self.__thread = None
+    
+    def start(self, meeting_url):
+        self.__client.join(meeting_url)
+        
+        # Add custom track for sound effects
+        self.__client.add_custom_audio_track(
+            track_name="sound-effects",
+            audio_track=self.__audio_track,
+            ignore_audio_level=False  # Allow sound effects to trigger active speaker
+        )
+        
+        # Start playback thread
+        self.__playing = True
+        self.__thread = threading.Thread(target=self.__process_queue)
+        self.__thread.start()
+    
+    def play_sound(self, sound_file):
+        """Queue a sound effect to play"""
+        self.__sound_queue.put(sound_file)
+    
+    def __process_queue(self):
+        while self.__playing:
+            # Wait for sound to play
+            sound_file = self.__sound_queue.get()
+            
+            if sound_file is None:
+                break
+            
+            # Play the sound
+            wav = wave.open(sound_file, "rb")
+            
+            while True:
+                frames = wav.readframes(int(self.__sample_rate / 10))
+                if len(frames) == 0:
+                    break
+                self.__audio_source.write_frames(frames)
+            
+            wav.close()
+    
+    def stop(self):
+        self.__playing = False
+        self.__sound_queue.put(None)  # Signal thread to stop
+        
+        if self.__thread:
+            self.__thread.join()
+        
+        self.__client.remove_custom_audio_track("sound-effects")
+        self.__client.leave()
+
+# Usage
+Daily.init()
+sfx_player = SoundEffectsPlayer()
+sfx_player.start("https://your-domain.daily.co/room-name")
+
+# Play sound effects
+sfx_player.play_sound("applause.wav")
+sfx_player.play_sound("chime.wav")
+```
+
+### Multi-Track Audio Mixer
+
+Mix multiple audio sources:
+
+```python
+import numpy as np
+import threading
+from daily import Daily, CallClient, CustomAudioSource, CustomAudioTrack
+
+class AudioMixer:
+    def __init__(self, sample_rate=16000, channels=1):
+        self.__sample_rate = sample_rate
+        self.__channels = channels
+        
+        # Create multiple audio sources
+        self.__sources = {
+            "music": CustomAudioSource(sample_rate, channels),
+            "sfx": CustomAudioSource(sample_rate, channels),
+            "tts": CustomAudioSource(sample_rate, channels)
+        }
+        
+        # Create tracks for each source
+        self.__tracks = {
+            name: CustomAudioTrack(source)
+            for name, source in self.__sources.items()
+        }
+        
+        self.__client = CallClient()
+    
+    def start(self, meeting_url):
+        self.__client.join(meeting_url)
+        
+        # Add all custom tracks
+        for track_name, audio_track in self.__tracks.items():
+            self.__client.add_custom_audio_track(
+                track_name=track_name,
+                audio_track=audio_track,
+                ignore_audio_level=(track_name == "music")  # Only music ignores levels
+            )
+    
+    def play_on_track(self, track_name, audio_data):
+        """Play audio data on a specific track"""
+        if track_name in self.__sources:
+            self.__sources[track_name].write_frames(audio_data)
+    
+    def stop(self):
+        # Remove all tracks
+        for track_name in self.__tracks.keys():
+            self.__client.remove_custom_audio_track(track_name)
+        
+        self.__client.leave()
+
+# Usage
+Daily.init()
+mixer = AudioMixer()
+mixer.start("https://your-domain.daily.co/room-name")
+
+# Play different audio on different tracks
+mixer.play_on_track("music", background_music_bytes)
+mixer.play_on_track("sfx", sound_effect_bytes)
+mixer.play_on_track("tts", text_to_speech_bytes)
+```
+
+### Text-to-Speech Integration
+
+Integrate TTS as a custom track:
+
+```python
+from daily import Daily, CallClient, CustomAudioSource, CustomAudioTrack
+import pyttsx3
+import io
+import wave
+
+class TTSPlayer:
+    def __init__(self, sample_rate=16000):
+        self.__sample_rate = sample_rate
+        
+        # Create audio source and track
+        self.__audio_source = CustomAudioSource(
+            sample_rate=sample_rate,
+            channels=1
+        )
+        self.__audio_track = CustomAudioTrack(
+            audio_source=self.__audio_source
+        )
+        
+        self.__client = CallClient()
+        self.__tts_engine = pyttsx3.init()
+    
+    def start(self, meeting_url):
+        self.__client.join(meeting_url)
+        
+        # Add custom track for TTS
+        self.__client.add_custom_audio_track(
+            track_name="tts-audio",
+            audio_track=self.__audio_track,
+            ignore_audio_level=False
+        )
+    
+    def speak(self, text):
+        """Convert text to speech and play on custom track"""
+        # Save TTS to temporary WAV file
+        temp_file = "/tmp/tts_temp.wav"
+        self.__tts_engine.save_to_file(text, temp_file)
+        self.__tts_engine.runAndWait()
+        
+        # Read and play the audio
+        with wave.open(temp_file, "rb") as wav:
+            while True:
+                frames = wav.readframes(int(self.__sample_rate / 10))
+                if len(frames) == 0:
+                    break
+                self.__audio_source.write_frames(frames)
+    
+    def stop(self):
+        self.__client.remove_custom_audio_track("tts-audio")
+        self.__client.leave()
+
+# Usage
+Daily.init()
+tts = TTSPlayer()
+tts.start("https://your-domain.daily.co/room-name")
+tts.speak("Hello, this is a text to speech announcement")
+```
+
+## Best Practices
+
+<Steps>
+  <Step title="Use appropriate ignore_audio_level setting">
+    Set `ignore_audio_level=True` for background music and ambient sounds. Set it to `False` for important audio like announcements.
+  </Step>
+  
+  <Step title="Match sample rates">
+    Ensure your audio data matches the sample rate specified in CustomAudioSource to avoid pitch/speed issues.
+  </Step>
+  
+  <Step title="Clean up tracks">
+    Always remove custom tracks when done to free resources and avoid confusion.
+  </Step>
+  
+  <Step title="Use unique track names">
+    Give each custom track a descriptive, unique name for easier management.
+  </Step>
+  
+  <Step title="Handle threading carefully">
+    When writing audio from multiple threads, ensure proper synchronization to avoid race conditions.
+  </Step>
+</Steps>
+
+<Warning>
+Writing audio frames too quickly or too slowly can cause audio glitches. Maintain consistent timing when writing frames.
+</Warning>
+
+<Tip>
+For stereo audio, set `channels=2` in CustomAudioSource. Ensure your audio data is interleaved (L, R, L, R, ...).
+</Tip>
+
+## Use Cases
+
+### Background Music
+Add ambient music to calls, virtual events, or waiting rooms.
+
+### Sound Effects
+Play notification sounds, applause, or other effects during presentations.
+
+### Announcements
+Play pre-recorded announcements or text-to-speech messages.
+
+### Music Sharing
+Share music or audio content while maintaining separate microphone audio.
+
+### Audio Playback
+Play back recorded audio clips or podcasts during calls.
+
+### Multi-Language Translation
+Stream translated audio as a separate track.
+
+## Related Resources
+
+- [Audio Processing](/guides/audio-processing) - Learn about audio processing fundamentals
+- [CallClient.add_custom_audio_track()](/api-reference/call-client#add_custom_audio_track)
+- [CustomAudioSource](/api-reference/classes#customaudiosource)
+- [CustomAudioTrack](/api-reference/classes#customaudiotrack)

@@ -1,0 +1,565 @@
+---
+title: "Integration Examples"
+description: "Integrate Daily with OpenAI, Deepgram, Google Cloud, Flask, and other popular services"
+---
+
+These examples demonstrate how to integrate the Daily Python SDK with popular third-party services and frameworks to build powerful real-time applications.
+
+## OpenAI Integration
+
+### DALL-E Voice-to-Image
+
+Capture spoken audio, transcribe it with Google Speech-to-Text, and generate images using OpenAI's DALL-E.
+
+**File**: `demos/openai/dall-e.py`
+
+```python
+from daily import *
+from google.cloud import speech
+from PIL import Image
+from openai import OpenAI
+import io
+import wave
+from base64 import b64decode
+
+CAMERA_WIDTH = 1024
+CAMERA_HEIGHT = 1024
+
+# Create virtual speaker and camera
+speaker = Daily.create_speaker_device("my-speaker", sample_rate=16000, channels=1)
+camera = Daily.create_camera_device(
+    "my-camera",
+    width=CAMERA_WIDTH,
+    height=CAMERA_HEIGHT,
+    color_format="RGB"
+)
+
+Daily.select_speaker_device("my-speaker")
+
+client = CallClient()
+
+# Join meeting
+client.join(
+    meeting_url,
+    client_settings={
+        "inputs": {
+            "camera": {"isEnabled": True, "settings": {"deviceId": "my-camera"}},
+            "microphone": False,
+        }
+    },
+)
+
+SAMPLE_RATE = 16000
+SECONDS_TO_READ = 10
+FRAMES_TO_READ = SAMPLE_RATE * SECONDS_TO_READ
+
+print(f"Say something in the meeting for {SECONDS_TO_READ} seconds...")
+
+# Capture audio to in-memory WAV file
+content = io.BufferedRandom(io.BytesIO())
+out_wave = wave.open(content, "wb")
+out_wave.setnchannels(1)
+out_wave.setsampwidth(2)  # 16-bit LINEAR PCM
+out_wave.setframerate(16000)
+
+# Read audio from virtual speaker
+buffer = speaker.read_frames(FRAMES_TO_READ)
+out_wave.writeframesraw(buffer)
+out_wave.close()
+
+content.seek(0)
+
+openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+# Transcribe with Google Speech-to-Text
+audio = speech.RecognitionAudio(content=content.read())
+config = speech.RecognitionConfig(
+    encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
+    sample_rate_hertz=16000,
+    language_code="en-US",
+)
+
+speech_client = speech.SpeechClient()
+response = speech_client.recognize(config=config, audio=audio)
+
+if len(response.results) > 0:
+    prompt = response.results[0].alternatives[0].transcript
+    
+    print(f"Generating image for '{prompt}'...")
+    
+    # Generate image with DALL-E
+    response = openai_client.images.generate(
+        prompt=prompt,
+        n=1,
+        size=f"{CAMERA_WIDTH}x{CAMERA_HEIGHT}",
+        response_format="b64_json"
+    )
+    
+    dalle_png = b64decode(response.data[0].b64_json)
+    dalle_im = Image.open(io.BytesIO(dalle_png))
+    
+    # Stream the generated image to meeting
+    while True:
+        camera.write_frame(dalle_im.tobytes())
+        time.sleep(0.033)  # ~30 FPS
+```
+
+**Features**:
+- Voice-activated image generation
+- Real-time transcription with Google STT
+- DALL-E 3 integration
+- Live image streaming to meeting
+
+**Prerequisites**:
+- Google Cloud credentials for Speech-to-Text
+- OpenAI API key in `OPENAI_API_KEY` environment variable
+- See [Google Cloud STT docs](https://cloud.google.com/speech-to-text/docs/before-you-begin)
+- See [OpenAI API docs](https://platform.openai.com/docs/api-reference/authentication)
+
+**Usage**:
+```bash
+export OPENAI_API_KEY=your_api_key
+python3 dall-e.py -m MEETING_URL
+```
+
+**Workflow**:
+1. Join meeting with camera enabled
+2. Record 10 seconds of audio from meeting
+3. Transcribe audio to text using Google STT
+4. Generate image from text using DALL-E
+5. Stream generated image back to meeting
+
+[View full source →](https://github.com/daily-co/daily-python/blob/main/demos/openai/dall-e.py)
+
+## Deepgram Integration
+
+### Deepgram Text-to-Speech
+
+Convert text to high-quality speech using Deepgram's TTS API.
+
+**File**: `demos/deepgram/deepgram_text_to_speech.py`
+
+```python
+from daily import *
+from deepgram import DeepgramClient
+
+Daily.init()
+
+microphone = Daily.create_microphone_device("my-mic", sample_rate=16000, channels=1)
+client = CallClient()
+
+client.join(
+    meeting_url,
+    client_settings={
+        "inputs": {"microphone": {"isEnabled": True, "settings": {"deviceId": "my-mic"}}}
+    },
+)
+
+# Initialize Deepgram (requires DEEPGRAM_API_KEY env var)
+deepgram = DeepgramClient()
+
+for sentence in sentences:
+    response = deepgram.speak.v1.audio.generate(
+        model="aura-2-asteria-en",
+        encoding="linear16",
+        container="none",
+        sample_rate=16000,
+        text=sentence.strip(),
+    )
+    
+    # Stream audio frames to meeting
+    for data in response:
+        microphone.write_frames(data)
+```
+
+**Features**:
+- High-quality neural TTS
+- Multiple voice models available
+- Streaming audio output
+- Low latency
+
+**Prerequisites**:
+- Deepgram API key in `DEEPGRAM_API_KEY` environment variable
+- See [Deepgram TTS docs](https://developers.deepgram.com/docs/text-to-speech)
+
+**Usage**:
+```bash
+export DEEPGRAM_API_KEY=your_api_key
+python3 deepgram_text_to_speech.py -m MEETING_URL -i sentences.txt
+```
+
+[View full source →](https://github.com/daily-co/daily-python/blob/main/demos/deepgram/deepgram_text_to_speech.py)
+
+### Deepgram Speech-to-Text
+
+Deepgram also offers STT capabilities. Check their documentation for streaming and batch transcription options.
+
+## Google Cloud Integration
+
+### Google Text-to-Speech
+
+**File**: `demos/google/google_text_to_speech.py`
+
+```python
+from daily import *
+from google.cloud import texttospeech
+import io
+
+microphone = Daily.create_microphone_device("my-mic", sample_rate=16000, channels=1)
+client = CallClient()
+
+client.join(
+    meeting_url,
+    client_settings={
+        "inputs": {"microphone": {"isEnabled": True, "settings": {"deviceId": "my-mic"}}}
+    },
+)
+
+# Configure voice
+voice = texttospeech.VoiceSelectionParams(
+    language_code="en-US",
+    name="en-US-Studio-M"
+)
+
+audio_config = texttospeech.AudioConfig(
+    audio_encoding=texttospeech.AudioEncoding.LINEAR16,
+    speaking_rate=1.0,
+    sample_rate_hertz=16000
+)
+
+speech_client = texttospeech.TextToSpeechClient()
+
+for sentence in sentences:
+    synthesis_input = texttospeech.SynthesisInput(text=sentence.strip())
+    
+    response = speech_client.synthesize_speech(
+        input=synthesis_input,
+        voice=voice,
+        audio_config=audio_config
+    )
+    
+    # Skip WAV header and send audio
+    stream = io.BytesIO(response.audio_content)
+    stream.read(44)  # Skip RIFF header
+    microphone.write_frames(stream.read())
+```
+
+**Features**:
+- Multiple voice options (Standard, Studio, Neural2, Wavenet)
+- Language and accent selection
+- Speaking rate control
+- SSML support for advanced control
+
+**Prerequisites**:
+- Google Cloud credentials configured
+- See [Google Cloud TTS docs](https://cloud.google.com/text-to-speech)
+
+**Usage**:
+```bash
+python3 google_text_to_speech.py -m MEETING_URL -i sentences.txt
+```
+
+[View full source →](https://github.com/daily-co/daily-python/blob/main/demos/google/google_text_to_speech.py)
+
+### Google Speech-to-Text
+
+**File**: `demos/google/google_speech_to_text.py`
+
+Transcribe audio from meetings using Google's Speech-to-Text API.
+
+**Prerequisites**:
+- Google Cloud credentials configured
+- See [Google Cloud STT docs](https://cloud.google.com/speech-to-text/docs/before-you-begin)
+
+[View full source →](https://github.com/daily-co/daily-python/blob/main/demos/google/google_speech_to_text.py)
+
+## Flask and Celery Integration
+
+### Multi-Bot Orchestration
+
+Launch and manage multiple concurrent bots using Flask and Celery.
+
+**Files**:
+- `demos/flask/app.py` - Flask application and Celery tasks
+- `demos/flask/bot.py` - Bot implementation
+
+**app.py**:
+```python
+from flask import Flask, request, jsonify
+from celery import Celery
+from multiprocessing import Process
+from bot import start_bot
+
+app = Flask(__name__)
+celery = Celery('app', broker='redis://localhost:6379/0')
+
+@celery.task
+def create_bot(bot_name, meeting_url):
+    # Each bot runs in its own process
+    process = Process(target=start_bot, args=(bot_name, meeting_url))
+    process.start()
+    return process.pid
+
+@app.route('/start-bot', methods=['POST'])
+def start_bot_endpoint():
+    data = request.json
+    bot_name = data.get('bot_name')
+    meeting_url = data.get('meeting_url')
+    
+    task = create_bot.delay(bot_name, meeting_url)
+    
+    return jsonify({
+        'task_id': task.id,
+        'bot_name': bot_name
+    })
+```
+
+**bot.py**:
+```python
+from daily import *
+from google.cloud import texttospeech
+
+class Bot:
+    def __init__(self, name, microphone):
+        self.__name = name
+        self.__speech_client = texttospeech.TextToSpeechClient()
+        self.__call_client = CallClient()
+    
+    def run(self, meeting_url):
+        self.__call_client.join(
+            meeting_url,
+            client_settings={
+                "inputs": {
+                    "camera": False,
+                    "microphone": {"isEnabled": True, "settings": {"deviceId": "my-mic"}}
+                }
+            },
+            completion=self.on_joined,
+        )
+
+def start_bot(bot_name, meeting_url):
+    # Each process needs its own Daily.init()
+    Daily.init()
+    
+    microphone = Daily.create_microphone_device("my-mic", sample_rate=16000, channels=1)
+    
+    bot = Bot(bot_name, microphone)
+    bot.run(meeting_url)
+    bot.leave()
+```
+
+**Features**:
+- Launch multiple concurrent bots
+- Process isolation for each bot
+- Task queue management with Celery
+- REST API for bot control
+
+**Prerequisites**:
+- Redis server for Celery broker
+- Install: `pip install flask celery redis`
+- Start Redis: `redis-server`
+
+**Usage**:
+```bash
+# Start Celery worker
+celery -A app.celery worker --loglevel=info
+
+# Start Flask app
+python3 app.py
+
+# Launch a bot via API
+curl -X POST http://localhost:5000/start-bot \
+  -H "Content-Type: application/json" \
+  -d '{"bot_name": "bot1", "meeting_url": "https://daily.co/your-room"}'
+```
+
+**Architecture Notes**:
+- Each bot runs in a separate process (required for Daily.init())
+- Processes are independent - use Redis Pub/Sub or message queues for communication
+- Scale horizontally by adding more Celery workers
+
+[View full source →](https://github.com/daily-co/daily-python/tree/main/demos/flask)
+
+## PyAudio Integration
+
+### Real Microphone and Speaker Access
+
+**File**: `demos/pyaudio/record_and_play.py`
+
+```python
+import pyaudio
+from daily import *
+
+class PyAudioApp:
+    def __init__(self, sample_rate, num_channels):
+        # Virtual devices for Daily
+        self.__virtual_mic = Daily.create_microphone_device(
+            "my-mic",
+            sample_rate=sample_rate,
+            channels=num_channels,
+            non_blocking=True
+        )
+        
+        self.__virtual_speaker = Daily.create_speaker_device(
+            "my-speaker",
+            sample_rate=sample_rate,
+            channels=num_channels,
+        )
+        Daily.select_speaker_device("my-speaker")
+        
+        # PyAudio streams
+        self.__pyaudio = pyaudio.PyAudio()
+        
+        # Input: Real mic -> Daily
+        self.__input_stream = self.__pyaudio.open(
+            format=pyaudio.paInt16,
+            channels=num_channels,
+            rate=sample_rate,
+            input=True,
+            stream_callback=self.on_input_stream,
+        )
+        
+        # Output: Daily -> Real speaker
+        self.__output_stream = self.__pyaudio.open(
+            format=pyaudio.paInt16,
+            channels=num_channels,
+            rate=sample_rate,
+            output=True
+        )
+    
+    def on_input_stream(self, in_data, frame_count, time_info, status):
+        # Capture from mic, send to Daily
+        self.__virtual_mic.write_frames(in_data)
+        return None, pyaudio.paContinue
+    
+    def send_audio_stream(self):
+        num_frames = int(self.__sample_rate / 100)
+        while not self.__app_quit:
+            # Read from Daily, play to speaker
+            audio = self.__virtual_speaker.read_frames(num_frames)
+            if audio:
+                self.__output_stream.write(audio)
+```
+
+**Features**:
+- Access real audio hardware
+- Full-duplex audio (simultaneous record and playback)
+- Audio processing (AGC, noise suppression, echo cancellation)
+- Stereo support
+
+**Prerequisites**:
+- PortAudio library
+- Install: `apt-get install portaudio19-dev` (Linux) or `brew install portaudio` (macOS)
+- Install PyAudio: `pip install pyaudio`
+
+**Usage**:
+```bash
+python3 record_and_play.py -m MEETING_URL
+```
+
+[View full source →](https://github.com/daily-co/daily-python/blob/main/demos/pyaudio/record_and_play.py)
+
+## Integration Patterns
+
+### API Key Management
+
+Most integrations require API keys. Best practices:
+
+```python
+import os
+from dotenv import load_dotenv
+
+# Load from .env file
+load_dotenv()
+
+openai_api_key = os.getenv("OPENAI_API_KEY")
+deepgram_api_key = os.getenv("DEEPGRAM_API_KEY")
+
+# Validate keys
+if not openai_api_key:
+    raise ValueError("OPENAI_API_KEY environment variable not set")
+```
+
+### Error Handling
+
+Handle API errors gracefully:
+
+```python
+try:
+    response = openai_client.images.generate(
+        prompt=prompt,
+        n=1,
+        size="1024x1024"
+    )
+except openai.APIError as e:
+    print(f"OpenAI API error: {e}")
+except openai.RateLimitError as e:
+    print(f"Rate limit exceeded: {e}")
+except Exception as e:
+    print(f"Unexpected error: {e}")
+```
+
+### Async Processing
+
+Use threading or async for non-blocking operations:
+
+```python
+import threading
+import queue
+
+class AsyncProcessor:
+    def __init__(self):
+        self.__queue = queue.Queue()
+        self.__thread = threading.Thread(target=self.process_loop)
+        self.__thread.start()
+    
+    def process_loop(self):
+        while not self.__quit:
+            data = self.__queue.get()
+            # Process data with external API
+            result = external_api.process(data)
+            # Handle result
+```
+
+### Rate Limiting
+
+Respect API rate limits:
+
+```python
+import time
+from collections import deque
+
+class RateLimiter:
+    def __init__(self, max_calls, period):
+        self.max_calls = max_calls
+        self.period = period
+        self.calls = deque()
+    
+    def wait_if_needed(self):
+        now = time.time()
+        
+        # Remove old calls
+        while self.calls and self.calls[0] < now - self.period:
+            self.calls.popleft()
+        
+        # Wait if at limit
+        if len(self.calls) >= self.max_calls:
+            sleep_time = self.period - (now - self.calls[0])
+            time.sleep(sleep_time)
+        
+        self.calls.append(time.time())
+
+# Usage
+limiter = RateLimiter(max_calls=10, period=60)  # 10 calls per minute
+
+for item in items:
+    limiter.wait_if_needed()
+    api.process(item)
+```
+
+## Next Steps
+
+- Explore [Audio Bot Examples](/examples/audio-bots) for more audio integration patterns
+- Check out [Video Applications](/examples/video-applications) for video-based integrations
+- Read the [API Reference](/api/daily) for detailed SDK documentation
+- Browse all examples on [GitHub](https://github.com/daily-co/daily-python/tree/main/demos)

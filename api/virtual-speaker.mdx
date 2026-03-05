@@ -1,0 +1,213 @@
+---
+title: "VirtualSpeakerDevice"
+description: "Virtual speaker device for receiving audio frames from Daily calls"
+---
+
+## Overview
+
+The `VirtualSpeakerDevice` class represents a virtual speaker that can be used to receive audio frames from a Daily call. You can create a virtual speaker device and read audio frames from it programmatically.
+
+## Creation
+
+Create a virtual speaker device using the `Daily.create_speaker_device()` static method:
+
+```python
+from daily import Daily
+
+speaker = Daily.create_speaker_device(
+    device_name="my-virtual-speaker",
+    sample_rate=16000,
+    channels=1,
+    non_blocking=False
+)
+```
+
+### Parameters
+
+<ParamField path="device_name" type="str" required>
+  The name of the virtual speaker device
+</ParamField>
+
+<ParamField path="sample_rate" type="int" default="16000">
+  The sample rate of the audio in Hz (e.g., 16000, 48000)
+</ParamField>
+
+<ParamField path="channels" type="int" default="1">
+  The number of audio channels (1 for mono, 2 for stereo)
+</ParamField>
+
+<ParamField path="non_blocking" type="bool" default="False">
+  Whether the read operation should be non-blocking
+</ParamField>
+
+## Properties
+
+<ResponseField name="name" type="str">
+  The name of the virtual speaker device
+</ResponseField>
+
+<ResponseField name="sample_rate" type="int">
+  The sample rate of the audio in Hz
+</ResponseField>
+
+<ResponseField name="channels" type="int">
+  The number of audio channels
+</ResponseField>
+
+## Methods
+
+### read_frames()
+
+Reads audio frames from the virtual speaker device.
+
+```python
+audio_data = speaker.read_frames(num_frame, completion=None)
+```
+
+#### Parameters
+
+<ParamField path="num_frame" type="int" required>
+  The number of audio frames to read
+</ParamField>
+
+<ParamField path="completion" type="Callable[[bytes], None]" optional>
+  Optional callback function that will be called with the audio data bytes
+</ParamField>
+
+#### Returns
+
+`bytes` - The audio frame data as bytes in the format matching the sample rate and channel configuration
+
+## Example Usage
+
+```python
+from daily import Daily, CallClient
+import numpy as np
+import time
+
+# Initialize Daily
+Daily.init()
+
+# Create a virtual speaker device
+speaker = Daily.create_speaker_device(
+    device_name="my-speaker",
+    sample_rate=16000,
+    channels=1
+)
+
+# Select the virtual speaker device
+Daily.select_speaker_device(speaker.name)
+
+# Create a client and join a call
+client = CallClient()
+client.join("https://your-domain.daily.co/room")
+
+# Read audio frames continuously
+while True:
+    # Read 20ms of audio (320 frames at 16kHz)
+    num_frames = int(speaker.sample_rate * 0.02)  # 20ms
+    
+    # Read frames from the virtual speaker
+    audio_data = speaker.read_frames(num_frames)
+    
+    # Process the audio data
+    if audio_data:
+        # Convert bytes to numpy array for processing
+        audio_array = np.frombuffer(audio_data, dtype=np.int16)
+        
+        # Do something with the audio (e.g., save to file, analyze, etc.)
+        print(f"Received {len(audio_array)} audio samples")
+    
+    # Control timing
+    time.sleep(0.02)  # 20ms
+```
+
+## Non-blocking Mode
+
+When creating a virtual speaker with `non_blocking=True`, the `read_frames()` method will return immediately even if the requested number of frames is not available:
+
+```python
+speaker = Daily.create_speaker_device(
+    device_name="my-speaker",
+    sample_rate=16000,
+    channels=1,
+    non_blocking=True
+)
+
+# Read frames without blocking
+audio_data = speaker.read_frames(320)
+if audio_data:
+    # Process available audio
+    process_audio(audio_data)
+```
+
+## Completion Callback
+
+You can provide a completion callback to be notified when frames are read:
+
+```python
+def on_frames_read(audio_data):
+    print(f"Read {len(audio_data)} bytes of audio")
+    # Process the audio data
+    process_audio(audio_data)
+
+speaker.read_frames(320, completion=on_frames_read)
+```
+
+## Recording Call Audio
+
+Here's a complete example of recording audio from a Daily call:
+
+```python
+from daily import Daily, CallClient
+import wave
+import numpy as np
+
+# Initialize Daily
+Daily.init()
+
+# Create a virtual speaker device
+speaker = Daily.create_speaker_device(
+    device_name="recorder",
+    sample_rate=16000,
+    channels=1
+)
+
+# Select the virtual speaker
+Daily.select_speaker_device(speaker.name)
+
+# Create a client and join
+client = CallClient()
+client.join("https://your-domain.daily.co/room")
+
+# Open a WAV file for writing
+wav_file = wave.open("recording.wav", "wb")
+wav_file.setnchannels(speaker.channels)
+wav_file.setsampwidth(2)  # 16-bit audio
+wav_file.setframerate(speaker.sample_rate)
+
+try:
+    # Record for 10 seconds
+    duration = 10
+    frames_per_read = int(speaker.sample_rate * 0.02)  # 20ms chunks
+    iterations = int(duration / 0.02)
+    
+    for _ in range(iterations):
+        audio_data = speaker.read_frames(frames_per_read)
+        if audio_data:
+            wav_file.writeframes(audio_data)
+        time.sleep(0.02)
+finally:
+    wav_file.close()
+    client.leave()
+    Daily.deinit()
+
+print("Recording saved to recording.wav")
+```
+
+## Related
+
+- [VirtualCameraDevice](/api/virtual-camera)
+- [VirtualMicrophoneDevice](/api/virtual-microphone)
+- [Daily.create_speaker_device()](/api/daily#create_speaker_device)
+- [Daily.select_speaker_device()](/api/daily#select_speaker_device)

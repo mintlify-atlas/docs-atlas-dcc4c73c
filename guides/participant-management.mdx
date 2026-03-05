@@ -1,0 +1,556 @@
+---
+title: "Participant Management"
+description: "Learn how to manage participants, permissions, and active speaker detection in the Daily Python SDK"
+---
+
+## Overview
+
+The Daily Python SDK provides comprehensive tools for managing participants in a meeting. This guide covers retrieving participant information, updating participant settings, managing permissions, ejecting participants, and detecting active speakers.
+
+## Getting Participant Information
+
+### List All Participants
+
+Retrieve information about all participants in the meeting:
+
+```python
+from daily import CallClient
+
+client = CallClient()
+
+# Get all participants
+participants = client.participants()
+
+for participant_id, participant_data in participants.items():
+    info = participant_data.get("info", {})
+    print(f"ID: {participant_id}")
+    print(f"Name: {info.get('userName')}")
+    print(f"Is local: {info.get('isLocal')}")
+    print(f"Owner: {info.get('isOwner')}")
+```
+
+### Participant Data Structure
+
+Each participant object contains:
+
+```python
+{
+    "info": {
+        "userId": "user-123",
+        "userName": "John Doe",
+        "isLocal": False,
+        "isOwner": True,
+        "joinedAt": "2024-03-05T10:30:00.000Z"
+    },
+    "media": {
+        "camera": {
+            "state": "playable",  # or "off", "blocked", "loading"
+            "subscribed": True
+        },
+        "microphone": {
+            "state": "playable",
+            "subscribed": True
+        },
+        "screenVideo": {
+            "state": "off",
+            "subscribed": False
+        }
+    },
+    "permissions": {
+        "canSend": ["camera", "microphone", "screenVideo", "screenAudio"],
+        "canAdmin": False
+    }
+}
+```
+
+### Get Participant Counts
+
+Retrieve participant count information:
+
+```python
+counts = client.participant_counts()
+
+print(f"Present: {counts.get('present')}")
+print(f"Hidden: {counts.get('hidden')}")
+```
+
+## Listening to Participant Events
+
+Use an EventHandler to receive participant updates:
+
+```python
+from daily import EventHandler, CallClient
+
+class ParticipantTracker(EventHandler):
+    def on_participant_joined(self, participant):
+        user_name = participant.get("info", {}).get("userName", "Unknown")
+        participant_id = participant.get("id")
+        print(f"{user_name} joined (ID: {participant_id})")
+    
+    def on_participant_left(self, participant, reason):
+        user_name = participant.get("info", {}).get("userName", "Unknown")
+        print(f"{user_name} left (reason: {reason})")
+    
+    def on_participant_updated(self, participant):
+        participant_id = participant.get("id")
+        media = participant.get("media", {})
+        
+        # Check camera state
+        camera_state = media.get("camera", {}).get("state")
+        mic_state = media.get("microphone", {}).get("state")
+        
+        print(f"Participant {participant_id} updated:")
+        print(f"  Camera: {camera_state}")
+        print(f"  Microphone: {mic_state}")
+    
+    def on_participant_counts_updated(self, counts):
+        print(f"Participant counts: {counts}")
+
+# Use the event handler
+event_handler = ParticipantTracker()
+client = CallClient(event_handler=event_handler)
+```
+
+## Active Speaker Detection
+
+Detect which participant is currently speaking:
+
+```python
+# Get current active speaker
+active_speaker = client.active_speaker()
+
+if active_speaker:
+    participant_id = active_speaker.get("participantId")
+    print(f"Active speaker: {participant_id}")
+```
+
+### Listening to Active Speaker Changes
+
+```python
+class ActiveSpeakerTracker(EventHandler):
+    def on_active_speaker_changed(self, participant):
+        participant_id = participant.get("participantId")
+        
+        if participant_id:
+            print(f"Active speaker changed to: {participant_id}")
+        else:
+            print("No active speaker")
+
+event_handler = ActiveSpeakerTracker()
+client = CallClient(event_handler=event_handler)
+```
+
+## Updating Remote Participants
+
+Modify settings for remote participants:
+
+```python
+from daily import CallClient
+
+client = CallClient()
+
+def on_update_complete(error):
+    if error:
+        print(f"Failed to update participants: {error}")
+    else:
+        print("Participants updated successfully")
+
+# Mute a specific participant's microphone
+remote_participants = {
+    "participant-id-123": {
+        "setAudio": False  # Mute their audio
+    }
+}
+
+client.update_remote_participants(
+    remote_participants=remote_participants,
+    completion=on_update_complete
+)
+```
+
+### Update Options
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `setAudio` | `bool` | Enable/disable participant's audio |
+| `setVideo` | `bool` | Enable/disable participant's video |
+| `setSubscribedTracks` | `dict` | Set which tracks to subscribe to |
+| `eject` | `bool` | Eject the participant |
+
+### Multiple Participant Updates
+
+Update multiple participants at once:
+
+```python
+remote_participants = {
+    "participant-1": {
+        "setAudio": False,
+        "setVideo": False
+    },
+    "participant-2": {
+        "setAudio": True,
+        "setVideo": True
+    }
+}
+
+client.update_remote_participants(
+    remote_participants=remote_participants,
+    completion=on_update_complete
+)
+```
+
+## Ejecting Participants
+
+Remove participants from the meeting:
+
+```python
+def on_eject_complete(error):
+    if error:
+        print(f"Failed to eject participants: {error}")
+    else:
+        print("Participants ejected successfully")
+
+# Eject specific participants
+participant_ids = ["participant-1", "participant-2"]
+
+client.eject_remote_participants(
+    ids=participant_ids,
+    completion=on_eject_complete
+)
+```
+
+<Warning>
+Only meeting owners can eject participants. Ensure your participant has owner permissions before attempting to eject others.
+</Warning>
+
+## Managing Permissions
+
+Update participant permissions:
+
+```python
+def on_permissions_updated(error):
+    if error:
+        print(f"Failed to update permissions: {error}")
+    else:
+        print("Permissions updated successfully")
+
+# Set permissions for all participants
+permissions = {
+    "canSend": ["camera", "microphone"],  # Disable screen sharing
+    "canAdmin": False
+}
+
+client.update_permissions(
+    permissions=permissions,
+    completion=on_permissions_updated
+)
+```
+
+### Permission Types
+
+| Permission | Description |
+|------------|-------------|
+| `canSend` | List of media types participant can send ("camera", "microphone", "screenVideo", "screenAudio") |
+| `canAdmin` | Whether participant has admin privileges |
+
+## Complete Examples
+
+### Meeting Moderator
+
+A complete moderator with participant management:
+
+```python
+from daily import Daily, CallClient, EventHandler
+
+class MeetingModerator(EventHandler):
+    def __init__(self):
+        self.__client = CallClient(event_handler=self)
+        self.__participants = {}
+    
+    def on_participant_joined(self, participant):
+        participant_id = participant.get("id")
+        user_name = participant.get("info", {}).get("userName", "Unknown")
+        self.__participants[participant_id] = participant
+        print(f"✓ {user_name} joined the meeting")
+    
+    def on_participant_left(self, participant, reason):
+        participant_id = participant.get("id")
+        user_name = participant.get("info", {}).get("userName", "Unknown")
+        
+        if participant_id in self.__participants:
+            del self.__participants[participant_id]
+        
+        print(f"✗ {user_name} left ({reason})")
+    
+    def on_active_speaker_changed(self, participant):
+        participant_id = participant.get("participantId")
+        
+        if participant_id and participant_id in self.__participants:
+            user_name = self.__participants[participant_id].get("info", {}).get("userName")
+            print(f"🎤 {user_name} is speaking")
+    
+    def start(self, meeting_url):
+        self.__client.join(meeting_url)
+    
+    def mute_participant(self, participant_id):
+        """Mute a specific participant"""
+        self.__client.update_remote_participants(
+            remote_participants={
+                participant_id: {"setAudio": False}
+            },
+            completion=lambda error: (
+                print(f"Muted {participant_id}")
+                if not error
+                else print(f"Failed to mute: {error}")
+            )
+        )
+    
+    def mute_all(self):
+        """Mute all participants except self"""
+        updates = {}
+        for participant_id, participant in self.__participants.items():
+            if not participant.get("info", {}).get("isLocal"):
+                updates[participant_id] = {"setAudio": False}
+        
+        if updates:
+            self.__client.update_remote_participants(
+                remote_participants=updates,
+                completion=lambda error: (
+                    print("Muted all participants")
+                    if not error
+                    else print(f"Failed to mute all: {error}")
+                )
+            )
+    
+    def kick_participant(self, participant_id):
+        """Eject a participant from the meeting"""
+        self.__client.eject_remote_participants(
+            ids=[participant_id],
+            completion=lambda error: (
+                print(f"Ejected {participant_id}")
+                if not error
+                else print(f"Failed to eject: {error}")
+            )
+        )
+    
+    def list_participants(self):
+        """List all current participants"""
+        print("\nCurrent participants:")
+        for participant_id, participant in self.__participants.items():
+            info = participant.get("info", {})
+            media = participant.get("media", {})
+            
+            name = info.get("userName", "Unknown")
+            is_local = info.get("isLocal", False)
+            is_owner = info.get("isOwner", False)
+            
+            camera = media.get("camera", {}).get("state", "off")
+            mic = media.get("microphone", {}).get("state", "off")
+            
+            status = "(you)" if is_local else ""
+            owner = "👑" if is_owner else ""
+            
+            print(f"  {owner} {name} {status}")
+            print(f"    Camera: {camera}, Mic: {mic}")
+
+# Usage
+Daily.init()
+moderator = MeetingModerator()
+moderator.start("https://your-domain.daily.co/room-name")
+
+# Moderator actions
+moderator.list_participants()
+moderator.mute_participant("participant-id")
+moderator.mute_all()
+moderator.kick_participant("disruptive-participant-id")
+```
+
+### Participant Analytics
+
+Track participant engagement and statistics:
+
+```python
+from daily import Daily, CallClient, EventHandler
+import time
+from datetime import datetime, timedelta
+
+class ParticipantAnalytics(EventHandler):
+    def __init__(self):
+        self.__client = CallClient(event_handler=self)
+        self.__join_times = {}
+        self.__speaking_times = {}
+        self.__current_speaker = None
+        self.__speaker_start_time = None
+    
+    def on_participant_joined(self, participant):
+        participant_id = participant.get("id")
+        self.__join_times[participant_id] = time.time()
+        self.__speaking_times[participant_id] = 0
+    
+    def on_participant_left(self, participant, reason):
+        participant_id = participant.get("id")
+        
+        if participant_id in self.__join_times:
+            join_time = self.__join_times[participant_id]
+            duration = time.time() - join_time
+            speaking_time = self.__speaking_times.get(participant_id, 0)
+            
+            user_name = participant.get("info", {}).get("userName", "Unknown")
+            
+            print(f"\nParticipant {user_name} statistics:")
+            print(f"  Duration: {timedelta(seconds=int(duration))}")
+            print(f"  Speaking time: {timedelta(seconds=int(speaking_time))}")
+            print(f"  Speaking ratio: {(speaking_time/duration)*100:.1f}%")
+    
+    def on_active_speaker_changed(self, participant):
+        current_time = time.time()
+        
+        # Update previous speaker's time
+        if self.__current_speaker and self.__speaker_start_time:
+            speaking_duration = current_time - self.__speaker_start_time
+            self.__speaking_times[self.__current_speaker] += speaking_duration
+        
+        # Update current speaker
+        self.__current_speaker = participant.get("participantId")
+        self.__speaker_start_time = current_time if self.__current_speaker else None
+    
+    def get_analytics(self):
+        """Get analytics for all participants"""
+        current_time = time.time()
+        analytics = []
+        
+        participants = self.__client.participants()
+        
+        for participant_id, participant in participants.items():
+            if participant_id in self.__join_times:
+                join_time = self.__join_times[participant_id]
+                duration = current_time - join_time
+                speaking_time = self.__speaking_times.get(participant_id, 0)
+                
+                user_name = participant.get("info", {}).get("userName", "Unknown")
+                
+                analytics.append({
+                    "name": user_name,
+                    "duration": duration,
+                    "speaking_time": speaking_time,
+                    "speaking_ratio": (speaking_time / duration) if duration > 0 else 0
+                })
+        
+        return analytics
+    
+    def start(self, meeting_url):
+        self.__client.join(meeting_url)
+
+# Usage
+Daily.init()
+analytics = ParticipantAnalytics()
+analytics.start("https://your-domain.daily.co/room-name")
+
+# Get analytics
+time.sleep(300)  # Wait 5 minutes
+stats = analytics.get_analytics()
+
+for stat in stats:
+    print(f"{stat['name']}: {stat['speaking_ratio']*100:.1f}% speaking time")
+```
+
+### Automatic Permission Management
+
+Automatically manage permissions based on participant count:
+
+```python
+from daily import Daily, CallClient, EventHandler
+
+class PermissionManager(EventHandler):
+    def __init__(self, max_speakers=5):
+        self.__client = CallClient(event_handler=self)
+        self.__max_speakers = max_speakers
+    
+    def on_participant_counts_updated(self, counts):
+        present = counts.get("present", 0)
+        
+        # If too many participants, restrict permissions
+        if present > self.__max_speakers:
+            self.restrict_permissions()
+        else:
+            self.open_permissions()
+    
+    def restrict_permissions(self):
+        """Restrict new participants to view-only"""
+        permissions = {
+            "canSend": [],  # No sending allowed by default
+            "canAdmin": False
+        }
+        
+        self.__client.update_permissions(
+            permissions=permissions,
+            completion=lambda error: (
+                print("Restricted permissions for new participants")
+                if not error
+                else print(f"Failed to restrict: {error}")
+            )
+        )
+    
+    def open_permissions(self):
+        """Allow all participants to send media"""
+        permissions = {
+            "canSend": ["camera", "microphone", "screenVideo", "screenAudio"],
+            "canAdmin": False
+        }
+        
+        self.__client.update_permissions(
+            permissions=permissions,
+            completion=lambda error: (
+                print("Opened permissions for all participants")
+                if not error
+                else print(f"Failed to open: {error}")
+            )
+        )
+    
+    def start(self, meeting_url):
+        self.__client.join(meeting_url)
+
+# Usage
+Daily.init()
+manager = PermissionManager(max_speakers=5)
+manager.start("https://your-domain.daily.co/room-name")
+```
+
+## Best Practices
+
+<Steps>
+  <Step title="Check owner status">
+    Verify you have owner permissions before attempting administrative actions like ejecting participants or updating permissions.
+  </Step>
+  
+  <Step title="Handle errors gracefully">
+    Always provide completion callbacks and handle errors, especially for permission-related operations.
+  </Step>
+  
+  <Step title="Track participant state">
+    Maintain local state about participants using event handlers to avoid frequent API calls.
+  </Step>
+  
+  <Step title="Batch updates">
+    When updating multiple participants, use a single `update_remote_participants()` call instead of multiple individual calls.
+  </Step>
+  
+  <Step title="Respect participant privacy">
+    Only access participant data that's necessary for your application's functionality.
+  </Step>
+</Steps>
+
+<Note>
+Participant updates are applied asynchronously. Use completion callbacks to confirm when changes take effect.
+</Note>
+
+<Tip>
+Use active speaker detection for UI highlights, automatic camera switching, or meeting analytics.
+</Tip>
+
+## Related Resources
+
+- [CallClient.participants()](/api-reference/call-client#participants)
+- [CallClient.update_remote_participants()](/api-reference/call-client#update_remote_participants)
+- [CallClient.eject_remote_participants()](/api-reference/call-client#eject_remote_participants)
+- [EventHandler](/api-reference/event-handler)

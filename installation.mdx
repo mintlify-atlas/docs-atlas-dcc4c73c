@@ -1,0 +1,238 @@
+---
+title: Installation
+description: Install and set up the Daily Python SDK in your development environment
+---
+
+## Quick Install
+
+The Daily Python SDK is distributed via PyPI and can be installed using standard Python package managers.
+
+<CodeGroup>
+
+```bash pip
+pip install daily-python
+```
+
+```bash pip3
+pip3 install daily-python
+```
+
+```bash poetry
+poetry add daily-python
+```
+
+```bash pipenv
+pipenv install daily-python
+```
+
+</CodeGroup>
+
+## System Requirements
+
+Before installing, verify your system meets these requirements:
+
+### Python Version
+
+The SDK requires **Python 3.7 or newer**. Check your Python version:
+
+```bash
+python --version
+# or
+python3 --version
+```
+
+### Operating System
+
+The Daily Python SDK currently supports **Linux** systems with the following requirements:
+
+- **glibc 2.28 or newer**
+- **x86_64 architecture**
+
+Supported distributions include:
+- Ubuntu 18.04 LTS or newer
+- Debian 10 (Buster) or newer
+- Fedora 28 or newer
+- CentOS 8 or newer
+- Other distributions with glibc 2.28+
+
+<Warning>
+  **Platform Limitations**
+  
+  The Daily Python SDK is currently Linux-only. MacOS and Windows support is not available at this time.
+</Warning>
+
+You can check your glibc version with:
+
+```bash
+ldd --version
+```
+
+## Upgrading
+
+To upgrade to the latest version of the Daily Python SDK:
+
+<CodeGroup>
+
+```bash pip
+pip install -U daily-python
+```
+
+```bash pip3
+pip3 install -U daily-python
+```
+
+```bash poetry
+poetry update daily-python
+```
+
+```bash pipenv
+pipenv update daily-python
+```
+
+</CodeGroup>
+
+## Verify Installation
+
+After installation, verify that the SDK is installed correctly:
+
+```python
+import daily
+print(daily.__name__)
+```
+
+If the import succeeds without errors, the installation is successful.
+
+You can also verify the available classes:
+
+```python
+from daily import Daily, CallClient, EventHandler
+
+print("Daily SDK imported successfully")
+print(f"CallClient: {CallClient}")
+print(f"EventHandler: {EventHandler}")
+print(f"Daily: {Daily}")
+```
+
+## Development Setup
+
+For development, it's recommended to use a virtual environment:
+
+<Steps>
+  <Step title="Create a virtual environment">
+    ```bash
+    python3 -m venv daily-env
+    ```
+  </Step>
+  
+  <Step title="Activate the environment">
+    ```bash
+    source daily-env/bin/activate
+    ```
+  </Step>
+  
+  <Step title="Install the SDK">
+    ```bash
+    pip install daily-python
+    ```
+  </Step>
+  
+  <Step title="Verify the installation">
+    ```bash
+    python -c "import daily; print('Daily SDK ready!')"
+    ```
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+### ImportError: No module named 'daily'
+
+This error indicates the package isn't installed in your current Python environment.
+
+**Solutions:**
+- Verify you're using the correct Python interpreter (especially if you have multiple versions)
+- Ensure your virtual environment is activated if you're using one
+- Reinstall the package: `pip install --force-reinstall daily-python`
+
+### GLIBC version error
+
+If you see an error like `version 'GLIBC_2.28' not found`, your system's glibc is too old.
+
+**Solutions:**
+- Upgrade your operating system to a newer version that includes glibc 2.28+
+- Use a Docker container with a compatible OS (see Docker setup below)
+
+### Platform not supported
+
+The SDK only supports Linux x86_64 platforms.
+
+**Solutions:**
+- Use a Linux VM or container if you're on MacOS or Windows
+- Consider using Daily's JavaScript SDK for other platforms
+
+## Docker Setup
+
+If your local system doesn't meet the requirements, you can use Docker:
+
+```dockerfile Dockerfile
+FROM python:3.11-slim
+
+# Install system dependencies if needed
+RUN apt-get update && apt-get install -y \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Daily Python SDK
+RUN pip install --no-cache-dir daily-python
+
+# Set working directory
+WORKDIR /app
+
+# Copy your application
+COPY . .
+
+CMD ["python", "your_app.py"]
+```
+
+Build and run:
+
+```bash
+docker build -t daily-app .
+docker run daily-app
+```
+
+## Additional Dependencies
+
+Depending on your use case, you may need additional packages:
+
+### For Audio Processing
+
+```bash
+pip install numpy  # For audio frame manipulation
+```
+
+### For AI Integration
+
+```bash
+pip install openai  # For OpenAI integration
+pip install google-cloud-texttospeech  # For Google TTS
+pip install google-cloud-speech  # For Google STT
+```
+
+### For Web Frameworks
+
+```bash
+pip install flask  # For Flask-based bots
+pip install fastapi uvicorn  # For FastAPI applications
+```
+
+<Tip>
+  Check out the [demos directory](https://github.com/daily-co/daily-python/tree/main/demos) in the GitHub repository for examples using these integrations.
+</Tip>
+
+## Next Steps
+
+Now that you have the SDK installed, you're ready to build your first application:
+
+<Card title="Quickstart Guide" icon="rocket" href="/quickstart">
+  Learn how to join a meeting and send/receive audio in minutes
+</Card>

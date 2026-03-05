@@ -1,0 +1,370 @@
+---
+title: "Audio Processing"
+description: "Learn how to process and manipulate audio streams in the Daily Python SDK"
+---
+
+## Overview
+
+The Daily Python SDK provides powerful audio processing capabilities, allowing you to capture, process, and send audio in real-time. This guide covers audio renderers, custom audio sources, virtual audio devices, and Voice Activity Detection (VAD).
+
+## Audio Renderers
+
+Audio renderers allow you to receive and process audio frames from participants in real-time.
+
+### Setting an Audio Renderer
+
+Use `set_audio_renderer()` to register a callback that receives audio data:
+
+```python
+from daily import CallClient, AudioData
+
+def audio_callback(participant_id: str, audio_data: AudioData, source: str):
+    # Process audio frames
+    print(f"Received audio from {participant_id}")
+    print(f"Sample rate: {audio_data.sample_rate}")
+    print(f"Channels: {audio_data.num_channels}")
+    print(f"Frames: {audio_data.num_audio_frames}")
+    
+    # Get raw audio data as bytes
+    raw_audio = audio_data.audio_frames
+
+client = CallClient()
+client.set_audio_renderer(
+    participant_id="participant-id",
+    callback=audio_callback,
+    audio_source="microphone",  # or "screenAudio"
+    sample_rate=16000,
+    callback_interval_ms=20
+)
+```
+
+### AudioData Properties
+
+The `AudioData` class provides access to audio frame information:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `bits_per_sample` | `int` | Number of bits per audio sample |
+| `sample_rate` | `int` | Audio sample rate in Hz |
+| `num_channels` | `int` | Number of audio channels (1 for mono, 2 for stereo) |
+| `num_audio_frames` | `int` | Number of audio frames in the buffer |
+| `audio_frames` | `bytes` | Raw audio data as bytes |
+
+## Virtual Audio Devices
+
+Virtual audio devices allow you to send and receive audio programmatically.
+
+### Virtual Microphone
+
+Create a virtual microphone to send custom audio into a call:
+
+```python
+from daily import Daily
+
+# Create a virtual microphone device
+mic_device = Daily.create_microphone_device(
+    "my-mic",
+    sample_rate=16000,
+    channels=1,
+    non_blocking=False
+)
+
+# Use it in client settings
+client.join(
+    meeting_url,
+    client_settings={
+        "inputs": {
+            "microphone": {
+                "isEnabled": True,
+                "settings": {"deviceId": "my-mic"}
+            }
+        }
+    }
+)
+
+# Write audio frames
+mic_device.write_frames(audio_bytes)
+```
+
+### Virtual Speaker
+
+Create a virtual speaker to receive audio from a call:
+
+```python
+from daily import Daily
+
+# Create a virtual speaker device
+speaker_device = Daily.create_speaker_device(
+    "my-speaker",
+    sample_rate=16000,
+    channels=1,
+    non_blocking=False
+)
+
+# Select the speaker device
+Daily.select_speaker_device("my-speaker")
+
+# Read audio frames
+audio_buffer = speaker_device.read_frames(num_frames=160)  # 10ms at 16kHz
+```
+
+## Complete Examples
+
+### Sending WAV Audio
+
+Here's a complete example of sending audio from a WAV file:
+
+```python
+import wave
+from daily import Daily, CallClient
+
+class SendWavApp:
+    def __init__(self, input_file, sample_rate=16000, num_channels=1):
+        self.__mic_device = Daily.create_microphone_device(
+            "my-mic",
+            sample_rate=sample_rate,
+            channels=num_channels
+        )
+        self.__client = CallClient()
+        
+    def send_wav_file(self, file_name):
+        wav = wave.open(file_name, "rb")
+        
+        sent_frames = 0
+        total_frames = wav.getnframes()
+        sample_rate = wav.getframerate()
+        
+        while sent_frames < total_frames:
+            # Read 100ms worth of audio frames
+            frames = wav.readframes(int(sample_rate / 10))
+            if len(frames) > 0:
+                self.__mic_device.write_frames(frames)
+                sent_frames += sample_rate / 10
+
+# Initialize and run
+Daily.init()
+app = SendWavApp("audio.wav")
+app.send_wav_file("audio.wav")
+```
+
+### Receiving WAV Audio
+
+Here's how to receive and save audio to a WAV file:
+
+```python
+import wave
+from daily import Daily, CallClient
+
+class ReceiveWavApp:
+    def __init__(self, output_file, sample_rate=16000, num_channels=1):
+        self.__sample_rate = sample_rate
+        
+        # Create virtual speaker
+        self.__speaker_device = Daily.create_speaker_device(
+            "my-speaker",
+            sample_rate=sample_rate,
+            channels=num_channels
+        )
+        Daily.select_speaker_device("my-speaker")
+        
+        # Setup WAV file
+        self.__wave = wave.open(output_file, "wb")
+        self.__wave.setnchannels(num_channels)
+        self.__wave.setsampwidth(2)  # 16-bit LINEAR PCM
+        self.__wave.setframerate(sample_rate)
+        
+        self.__client = CallClient()
+        
+    def receive_audio(self):
+        while not self.__app_quit:
+            # Read 100ms worth of audio frames
+            buffer = self.__speaker_device.read_frames(
+                int(self.__sample_rate / 10)
+            )
+            if len(buffer) > 0:
+                self.__wave.writeframes(buffer)
+```
+
+### Processing Raw Audio
+
+Send raw audio from standard input or any audio source:
+
+```python
+import sys
+from daily import Daily, CallClient
+
+SAMPLE_RATE = 16000
+NUM_CHANNELS = 1
+BYTES_PER_SAMPLE = 2
+
+mic_device = Daily.create_microphone_device(
+    "my-mic",
+    sample_rate=SAMPLE_RATE,
+    channels=NUM_CHANNELS
+)
+
+# Read from stdin and send to meeting
+while True:
+    num_bytes = int(SAMPLE_RATE / 10) * NUM_CHANNELS * BYTES_PER_SAMPLE
+    buffer = sys.stdin.buffer.read(num_bytes)
+    if buffer:
+        mic_device.write_frames(buffer)
+```
+
+## Voice Activity Detection (VAD)
+
+The SDK includes built-in Voice Activity Detection using `NativeVad` to detect speech in audio streams.
+
+### Creating a VAD Instance
+
+```python
+from daily import Daily
+
+vad = Daily.create_native_vad(
+    reset_period_ms=2000,
+    sample_rate=16000,
+    channels=1
+)
+```
+
+### NativeVad Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `reset_period_ms` | `int` | Period in ms after which VAD state resets |
+| `sample_rate` | `int` | Audio sample rate in Hz |
+| `channels` | `int` | Number of audio channels |
+
+### Analyzing Audio Frames
+
+Use `analyze_frames()` to get speech confidence:
+
+```python
+from daily import Daily
+import time
+
+class SpeechDetection:
+    def __init__(self):
+        self.__vad = Daily.create_native_vad(
+            reset_period_ms=2000,
+            sample_rate=16000,
+            channels=1
+        )
+        self.__speech_threshold = 0.90
+        self.__is_speaking = False
+        
+    def analyze(self, audio_buffer):
+        # Returns confidence between 0.0 and 1.0
+        confidence = self.__vad.analyze_frames(audio_buffer)
+        
+        if confidence > self.__speech_threshold:
+            if not self.__is_speaking:
+                print("Started speaking")
+                self.__is_speaking = True
+            print(f"Speech confidence: {confidence:.2f}")
+        else:
+            if self.__is_speaking:
+                print("Stopped speaking")
+                self.__is_speaking = False
+```
+
+### Complete VAD Example
+
+Here's a complete example that detects speech with configurable thresholds:
+
+```python
+from daily import Daily, CallClient
+import time
+from enum import Enum
+
+class SpeechStatus(Enum):
+    SPEAKING = 1
+    NOT_SPEAKING = 2
+
+class SpeechDetection:
+    def __init__(self, speech_threshold_ms=300, silence_threshold_ms=700):
+        self.__speech_threshold = 0.90
+        self.__speech_threshold_ms = speech_threshold_ms
+        self.__silence_threshold_ms = silence_threshold_ms
+        self.__status = SpeechStatus.NOT_SPEAKING
+        self.__started_speaking_time = 0
+        self.__last_speaking_time = 0
+        
+        self.__vad = Daily.create_native_vad(
+            reset_period_ms=2000,
+            sample_rate=16000,
+            channels=1
+        )
+    
+    def analyze(self, buffer):
+        confidence = self.__vad.analyze_frames(buffer)
+        current_time_ms = time.time() * 1000
+        
+        if confidence > self.__speech_threshold:
+            diff_ms = current_time_ms - self.__started_speaking_time
+            
+            if self.__status == SpeechStatus.NOT_SPEAKING:
+                self.__started_speaking_time = current_time_ms
+            
+            if diff_ms > self.__speech_threshold_ms:
+                self.__status = SpeechStatus.SPEAKING
+                self.__last_speaking_time = current_time_ms
+        else:
+            diff_ms = current_time_ms - self.__last_speaking_time
+            if diff_ms > self.__silence_threshold_ms:
+                self.__status = SpeechStatus.NOT_SPEAKING
+        
+        return self.__status, confidence
+
+# Use with virtual speaker device
+speaker_device = Daily.create_speaker_device(
+    "my-speaker",
+    sample_rate=16000,
+    channels=1
+)
+Daily.select_speaker_device("my-speaker")
+
+vad = SpeechDetection()
+
+while True:
+    buffer = speaker_device.read_frames(160)  # 10ms at 16kHz
+    if len(buffer) > 0:
+        status, confidence = vad.analyze(buffer)
+        if status == SpeechStatus.SPEAKING:
+            print(f"SPEAKING: {confidence:.2f}")
+```
+
+<Note>
+VAD works best with mono audio at 16kHz sample rate. Higher sample rates may affect accuracy.
+</Note>
+
+## Best Practices
+
+<Steps>
+  <Step title="Choose the right sample rate">
+    Use 16kHz for most voice applications. Higher rates (48kHz) are better for music but require more bandwidth.
+  </Step>
+  
+  <Step title="Handle audio buffering">
+    Process audio in consistent chunks (typically 10-100ms) to avoid buffer overruns or underruns.
+  </Step>
+  
+  <Step title="Use non-blocking mode for real-time">
+    Set `non_blocking=True` on virtual devices when you need immediate response without waiting for buffers to fill.
+  </Step>
+  
+  <Step title="Clean up resources">
+    Always call `release()` on the CallClient and close audio devices when done.
+  </Step>
+</Steps>
+
+<Warning>
+Audio processing runs in real-time. Ensure your callback functions complete quickly to avoid dropping frames.
+</Warning>
+
+## Related Resources
+
+- [Custom Tracks](/guides/custom-tracks) - Learn about custom audio tracks
+- [CallClient.set_audio_renderer()](/api-reference/call-client#set_audio_renderer)
+- [AudioData](/api-reference/classes#audiodata)
+- [NativeVad](/api-reference/classes#nativevad)

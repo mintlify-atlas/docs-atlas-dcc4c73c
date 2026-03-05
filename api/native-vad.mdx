@@ -1,0 +1,231 @@
+---
+title: "NativeVad"
+description: "Voice Activity Detection for real-time audio analysis"
+---
+
+## Overview
+
+The `NativeVad` class provides Voice Activity Detection (VAD) capabilities for analyzing audio frames to detect speech activity. It's useful for building voice-activated features, speech detection systems, and audio bots that need to identify when someone is speaking.
+
+VAD is commonly used in conversational AI applications to determine when a user has finished speaking, enabling natural turn-taking in voice interactions.
+
+## Creation
+
+Create a `NativeVad` instance using the static method `Daily.create_native_vad()`:
+
+```python
+from daily import Daily
+
+# Initialize Daily SDK
+Daily.init()
+
+# Create a VAD instance
+vad = Daily.create_native_vad(
+    reset_period_ms=500,
+    sample_rate=16000,
+    channels=1
+)
+```
+
+### Parameters
+
+<ParamField path="reset_period_ms" type="int" default="500">
+  The period in milliseconds after which the VAD state resets. This determines how long the VAD maintains its internal state before resetting.
+</ParamField>
+
+<ParamField path="sample_rate" type="int" default="16000">
+  The audio sample rate in Hz. Must match the sample rate of the audio frames being analyzed. Common values are 8000, 16000, 24000, or 48000.
+</ParamField>
+
+<ParamField path="channels" type="int" default="1">
+  The number of audio channels. Use 1 for mono, 2 for stereo.
+</ParamField>
+
+## Properties
+
+<ResponseField name="rest_period_ms" type="int">
+  The configured reset period in milliseconds.
+  
+  ```python
+  print(f"Reset period: {vad.rest_period_ms}ms")
+  ```
+</ResponseField>
+
+<ResponseField name="sample_rate" type="int">
+  The configured audio sample rate in Hz.
+  
+  ```python
+  print(f"Sample rate: {vad.sample_rate}Hz")
+  ```
+</ResponseField>
+
+<ResponseField name="channels" type="int">
+  The configured number of audio channels.
+  
+  ```python
+  print(f"Channels: {vad.channels}")
+  ```
+</ResponseField>
+
+## Methods
+
+### analyze_frames()
+
+```python
+def analyze_frames(self, frame: bytes) -> float
+```
+
+Analyzes audio frames to detect voice activity.
+
+#### Parameters
+
+<ParamField path="frame" type="bytes" required>
+  Raw audio frame data as bytes. The frame should match the configured sample rate and number of channels.
+</ParamField>
+
+#### Returns
+
+<ResponseField name="confidence" type="float">
+  A confidence score between 0.0 and 1.0 indicating the likelihood of speech being present in the audio frame. Higher values indicate greater confidence that speech is detected.
+  
+  - **0.0 - 0.5**: Likely silence or background noise
+  - **0.5 - 0.8**: Possible speech or ambiguous audio
+  - **0.8 - 1.0**: High confidence speech detected
+</ResponseField>
+
+## Usage Example
+
+Here's a complete example demonstrating speech detection using `NativeVad`:
+
+```python
+from daily import Daily, CallClient
+import time
+from enum import Enum
+
+SAMPLE_RATE = 16000
+CHANNELS = 1
+SPEECH_THRESHOLD = 0.90
+RESET_PERIOD_MS = 2000
+
+class SpeechStatus(Enum):
+    SPEAKING = 1
+    NOT_SPEAKING = 2
+
+class SpeechDetector:
+    def __init__(self):
+        # Create VAD instance
+        self.vad = Daily.create_native_vad(
+            reset_period_ms=RESET_PERIOD_MS,
+            sample_rate=SAMPLE_RATE,
+            channels=CHANNELS
+        )
+        self.status = SpeechStatus.NOT_SPEAKING
+        
+    def analyze(self, audio_buffer):
+        # Get confidence score from VAD
+        confidence = self.vad.analyze_frames(audio_buffer)
+        
+        # Determine speech status based on threshold
+        if confidence > SPEECH_THRESHOLD:
+            self.status = SpeechStatus.SPEAKING
+            print(f"SPEAKING: {confidence:.2f}")
+        else:
+            self.status = SpeechStatus.NOT_SPEAKING
+            print(f"NOT SPEAKING: {confidence:.2f}")
+        
+        return self.status
+
+# Initialize Daily SDK
+Daily.init()
+
+# Create speech detector
+detector = SpeechDetector()
+
+# Create a speaker device to receive audio
+speaker = Daily.create_speaker_device(
+    "my-speaker",
+    sample_rate=SAMPLE_RATE,
+    channels=CHANNELS
+)
+Daily.select_speaker_device("my-speaker")
+
+# Create and join call
+client = CallClient()
+client.join("https://your-domain.daily.co/room")
+
+# Process audio in a loop
+try:
+    while True:
+        # Read 10ms worth of audio frames
+        buffer = speaker.read_frames(int(SAMPLE_RATE / 100))
+        if len(buffer) > 0:
+            detector.analyze(buffer)
+        time.sleep(0.01)
+except KeyboardInterrupt:
+    client.leave()
+```
+
+## Advanced Example
+
+For a more sophisticated implementation with configurable thresholds and state management, see the [native_vad.py demo](https://github.com/daily-co/daily-python/blob/main/demos/vad/native_vad.py) in the Daily Python SDK repository.
+
+The demo includes:
+- Configurable speech and silence thresholds
+- Time-based state transitions for more accurate detection
+- Command-line arguments for tuning VAD parameters
+- Integration with Daily's virtual speaker device
+
+## Common Use Cases
+
+<AccordionGroup>
+  <Accordion title="Voice Bot Turn-Taking">
+    Use VAD to detect when a user has finished speaking, allowing your bot to respond at natural breaks in conversation:
+    
+    ```python
+    def on_silence_detected():
+        if user_was_speaking:
+            # User finished speaking, bot can respond now
+            generate_and_play_response()
+    ```
+  </Accordion>
+  
+  <Accordion title="Audio Recording Optimization">
+    Start and stop recording based on voice activity to save storage and processing:
+    
+    ```python
+    if speech_confidence > 0.9 and not recording:
+        start_recording()
+    elif speech_confidence < 0.3 and recording:
+        stop_recording()
+    ```
+  </Accordion>
+  
+  <Accordion title="Transcription Triggering">
+    Only send audio to transcription services when speech is detected:
+    
+    ```python
+    if vad.analyze_frames(buffer) > SPEECH_THRESHOLD:
+        send_to_transcription_service(buffer)
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Tips
+
+<Tip>
+  **Threshold Tuning**: Start with a confidence threshold of 0.90 for detecting speech. Adjust based on your environment - use higher values (0.95+) for noisy environments or lower values (0.70-0.85) for quiet environments.
+</Tip>
+
+<Tip>
+  **Sample Rate Matching**: Ensure the VAD's sample rate matches your audio source. Mismatched sample rates will produce inaccurate results.
+</Tip>
+
+<Note>
+  The `NativeVad` analyzes each frame independently. For production applications, combine VAD confidence scores with time-based thresholds to avoid rapid state changes from brief noise or pauses.
+</Note>
+
+## Related
+
+- [VirtualSpeakerDevice](/api/virtual-speaker) - Read audio from meetings
+- [Audio Processing Guide](/guides/audio-processing) - Complete guide to audio handling
+- [VAD Demo](https://github.com/daily-co/daily-python/tree/main/demos/vad) - Full example implementation

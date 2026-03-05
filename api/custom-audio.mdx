@@ -1,0 +1,362 @@
+---
+title: "Custom Audio"
+description: "Classes for sending custom audio to Daily calls"
+---
+
+The Daily Python SDK provides `CustomAudioSource` and `CustomAudioTrack` classes for sending custom audio to a call. This allows you to inject audio from files, generated audio, or processed audio streams.
+
+## CustomAudioSource
+
+The `CustomAudioSource` class represents a source of custom audio data that you can write audio frames to.
+
+### Class Definition
+
+```python
+class CustomAudioSource:
+    def __init__(self, sample_rate: int, channels: int) -> None: ...
+    @property
+    def sample_rate(self) -> int: ...
+    @property
+    def channels(self) -> int: ...
+    def write_frames(
+        self, frame: bytes, completion: Optional[Callable[[int], None]] = None
+    ) -> int: ...
+```
+
+### Constructor
+
+```python
+def __init__(self, sample_rate: int, channels: int) -> None
+```
+
+Create a new custom audio source.
+
+**Parameters:**
+- `sample_rate` (`int`) - Audio sample rate in Hz (e.g., 16000, 44100, 48000)
+- `channels` (`int`) - Number of audio channels (1 for mono, 2 for stereo)
+
+**Example:**
+```python
+from daily import CustomAudioSource
+
+# Create a mono audio source at 16kHz
+audio_source = CustomAudioSource(sample_rate=16000, channels=1)
+
+# Create a stereo audio source at 48kHz
+stereo_source = CustomAudioSource(sample_rate=48000, channels=2)
+```
+
+### Properties
+
+#### sample_rate
+
+```python
+@property
+def sample_rate(self) -> int
+```
+
+The audio sample rate in Hz.
+
+**Returns:** `int` - Sample rate in Hz
+
+#### channels
+
+```python
+@property
+def channels(self) -> int
+```
+
+The number of audio channels.
+
+**Returns:** `int` - Number of channels (1 for mono, 2 for stereo)
+
+### Methods
+
+#### write_frames
+
+```python
+def write_frames(
+    self,
+    frame: bytes,
+    completion: Optional[Callable[[int], None]] = None
+) -> int
+```
+
+Write audio frames to the audio source. The audio data should be in 16-bit PCM format.
+
+**Parameters:**
+- `frame` (`bytes`) - Raw audio data as bytes (16-bit PCM)
+- `completion` (`Optional[Callable[[int], None]]`) - Optional callback called with the number of frames written
+
+**Returns:** `int` - Number of frames written
+
+**Example:**
+```python
+audio_source = CustomAudioSource(sample_rate=16000, channels=1)
+
+# Write 20ms of audio (320 samples for 16kHz mono)
+# Each sample is 2 bytes (16-bit)
+audio_data = b'\x00' * 640  # 320 samples * 2 bytes
+frames_written = audio_source.write_frames(audio_data)
+print(f"Wrote {frames_written} frames")
+```
+
+## CustomAudioTrack
+
+The `CustomAudioTrack` class wraps a `CustomAudioSource` and can be added to a call.
+
+### Class Definition
+
+```python
+class CustomAudioTrack:
+    def __init__(self, audio_source: CustomAudioSource) -> None: ...
+    @property
+    def id(self) -> str: ...
+```
+
+### Constructor
+
+```python
+def __init__(self, audio_source: CustomAudioSource) -> None
+```
+
+Create a new custom audio track from an audio source.
+
+**Parameters:**
+- `audio_source` (`CustomAudioSource`) - The audio source to use for this track
+
+**Example:**
+```python
+from daily import CustomAudioSource, CustomAudioTrack
+
+audio_source = CustomAudioSource(sample_rate=16000, channels=1)
+audio_track = CustomAudioTrack(audio_source)
+```
+
+### Properties
+
+#### id
+
+```python
+@property
+def id(self) -> str
+```
+
+The unique identifier for this audio track.
+
+**Returns:** `str` - Track ID
+
+## Usage with CallClient
+
+To send custom audio to a call, you need to:
+
+1. Create a `CustomAudioSource`
+2. Create a `CustomAudioTrack` from the source
+3. Add the track to the call using `add_custom_audio_track()`
+4. Write audio frames to the source
+
+### Example: Playing Audio from File
+
+```python
+from daily import Daily, CallClient, CustomAudioSource, CustomAudioTrack
+import wave
+import time
+
+# Initialize Daily
+Daily.init()
+
+# Create call client
+client = CallClient()
+
+# Create custom audio source (16kHz mono)
+audio_source = CustomAudioSource(sample_rate=16000, channels=1)
+audio_track = CustomAudioTrack(audio_source)
+
+# Join call
+client.join("https://your-domain.daily.co/room-name")
+
+# Add custom audio track to call
+client.add_custom_audio_track(
+    track_name="file-audio",
+    audio_track=audio_track
+)
+
+# Read and play audio from WAV file
+with wave.open("audio.wav", 'rb') as wav_file:
+    # Verify format matches
+    assert wav_file.getframerate() == 16000
+    assert wav_file.getnchannels() == 1
+    assert wav_file.getsampwidth() == 2  # 16-bit
+    
+    # Read and send audio in chunks
+    chunk_size = 320  # 20ms at 16kHz
+    while True:
+        frames = wav_file.readframes(chunk_size)
+        if not frames:
+            break
+        
+        audio_source.write_frames(frames)
+        time.sleep(0.02)  # 20ms delay
+
+# Clean up
+client.leave()
+Daily.deinit()
+```
+
+### Example: Generating Synthetic Audio
+
+```python
+from daily import Daily, CallClient, CustomAudioSource, CustomAudioTrack
+import numpy as np
+import time
+
+# Initialize Daily
+Daily.init()
+
+# Create call client and join
+client = CallClient()
+client.join("https://your-domain.daily.co/room-name")
+
+# Create custom audio source
+audio_source = CustomAudioSource(sample_rate=16000, channels=1)
+audio_track = CustomAudioTrack(audio_source)
+
+# Add to call
+client.add_custom_audio_track(
+    track_name="tone-generator",
+    audio_track=audio_track
+)
+
+# Generate and send a 440Hz tone (A4 note)
+sample_rate = 16000
+duration_ms = 20  # 20ms chunks
+samples_per_chunk = int(sample_rate * duration_ms / 1000)
+frequency = 440  # Hz
+
+for i in range(500):  # Send 10 seconds of audio (500 * 20ms)
+    # Generate sine wave
+    t = np.arange(samples_per_chunk) / sample_rate
+    t += i * duration_ms / 1000  # Offset for continuous tone
+    
+    sine_wave = np.sin(2 * np.pi * frequency * t)
+    
+    # Convert to 16-bit PCM
+    audio_data = (sine_wave * 32767).astype(np.int16)
+    
+    # Write to audio source
+    audio_source.write_frames(audio_data.tobytes())
+    
+    # Wait for next chunk
+    time.sleep(duration_ms / 1000)
+
+# Clean up
+client.leave()
+Daily.deinit()
+```
+
+### Example: Streaming Audio with Thread
+
+```python
+from daily import Daily, CallClient, CustomAudioSource, CustomAudioTrack
+import wave
+import threading
+import time
+
+class AudioStreamer:
+    def __init__(self, audio_source: CustomAudioSource, audio_file: str):
+        self.audio_source = audio_source
+        self.audio_file = audio_file
+        self.running = False
+        self.thread = None
+    
+    def start(self):
+        self.running = True
+        self.thread = threading.Thread(target=self._stream_audio)
+        self.thread.start()
+    
+    def stop(self):
+        self.running = False
+        if self.thread:
+            self.thread.join()
+    
+    def _stream_audio(self):
+        with wave.open(self.audio_file, 'rb') as wav_file:
+            chunk_size = 320  # 20ms at 16kHz
+            
+            while self.running:
+                frames = wav_file.readframes(chunk_size)
+                if not frames:
+                    # Loop audio
+                    wav_file.rewind()
+                    continue
+                
+                self.audio_source.write_frames(frames)
+                time.sleep(0.02)
+
+# Usage
+Daily.init()
+client = CallClient()
+client.join("https://your-domain.daily.co/room-name")
+
+# Set up custom audio
+audio_source = CustomAudioSource(sample_rate=16000, channels=1)
+audio_track = CustomAudioTrack(audio_source)
+client.add_custom_audio_track("background-music", audio_track)
+
+# Start streaming
+streamer = AudioStreamer(audio_source, "background.wav")
+streamer.start()
+
+# Do other work...
+time.sleep(60)
+
+# Stop streaming
+streamer.stop()
+client.leave()
+Daily.deinit()
+```
+
+## Managing Custom Audio Tracks
+
+You can update or remove custom audio tracks using CallClient methods:
+
+```python
+# Add a custom audio track
+client.add_custom_audio_track(
+    track_name="my-audio",
+    audio_track=audio_track,
+    ignore_audio_level=False  # Optional: ignore audio level detection
+)
+
+# Update an existing custom audio track
+client.update_custom_audio_track(
+    track_name="my-audio",
+    audio_track=new_audio_track,
+    ignore_audio_level=True
+)
+
+# Remove a custom audio track
+client.remove_custom_audio_track(track_name="my-audio")
+```
+
+## Audio Format Requirements
+
+- Audio data must be 16-bit PCM (Pulse Code Modulation)
+- Sample rate can be 8000, 16000, 24000, 48000 Hz (16000 recommended)
+- Channels can be 1 (mono) or 2 (stereo)
+- Audio frames should be provided in regular intervals (typically 10-20ms chunks)
+
+## Notes
+
+- Custom audio tracks are mixed with microphone audio in the call
+- Use `ignore_audio_level=True` if you don't want the audio to affect active speaker detection
+- Ensure audio frames are written at the correct rate to avoid stuttering or gaps
+- The `completion` callback in `write_frames()` is called asynchronously when frames are consumed
+
+## See Also
+
+- [CallClient.add_custom_audio_track()](/api/call-client#add_custom_audio_track) - Add custom audio to call
+- [CallClient.update_custom_audio_track()](/api/call-client#update_custom_audio_track) - Update custom audio track
+- [CallClient.remove_custom_audio_track()](/api/call-client#remove_custom_audio_track) - Remove custom audio track
+- [AudioData](/api/audio-data) - Receiving audio from calls
+- [VirtualMicrophoneDevice](/api/virtual-microphone) - Alternative approach for custom audio

@@ -1,0 +1,276 @@
+---
+title: "LogLevel"
+description: "Configure SDK logging verbosity"
+---
+
+## Overview
+
+The `LogLevel` enum controls the verbosity of logging output from the Daily Python SDK. It allows you to configure how much diagnostic information is printed during SDK operations, which is useful for debugging, monitoring, and troubleshooting.
+
+Log levels follow a standard hierarchy where each level includes all messages from less verbose levels. For example, setting `LogLevel.Info` will also show `Warn` and `Error` messages.
+
+## Enum Values
+
+The `LogLevel` enum provides the following values, ordered from least to most verbose:
+
+<ResponseField name="LogLevel.Off" type="LogLevel">
+  **No logging** - Disables all SDK logging output. Use this in production when you don't need any diagnostic information.
+  
+  ```python
+  from daily import Daily, LogLevel
+  
+  Daily.init(log_level=LogLevel.Off)
+  ```
+</ResponseField>
+
+<ResponseField name="LogLevel.Error" type="LogLevel">
+  **Error messages only** - Logs only critical errors that prevent normal operation. Use this for production debugging when issues occur.
+  
+  ```python
+  Daily.init(log_level=LogLevel.Error)
+  ```
+</ResponseField>
+
+<ResponseField name="LogLevel.Warn" type="LogLevel">
+  **Warnings and errors** - Logs potential issues and errors. Use this to catch problems that don't stop execution but may cause unexpected behavior.
+  
+  ```python
+  Daily.init(log_level=LogLevel.Warn)
+  ```
+</ResponseField>
+
+<ResponseField name="LogLevel.Info" type="LogLevel">
+  **Informational messages** - Logs important events, state changes, and general information about SDK operations. Recommended for development and testing.
+  
+  ```python
+  Daily.init(log_level=LogLevel.Info)
+  ```
+</ResponseField>
+
+<ResponseField name="LogLevel.Debug" type="LogLevel">
+  **Detailed debug information** - Logs detailed diagnostic information useful for troubleshooting complex issues. Produces significant output.
+  
+  ```python
+  Daily.init(log_level=LogLevel.Debug)
+  ```
+</ResponseField>
+
+<ResponseField name="LogLevel.Trace" type="LogLevel">
+  **Maximum verbosity** - Logs extremely detailed trace information including internal SDK operations. Use only when debugging specific low-level issues. Produces very high output volume.
+  
+  
+  ```python
+  Daily.init(log_level=LogLevel.Trace)
+  ```
+</ResponseField>
+
+## Usage
+
+### Setting Log Level During Initialization
+
+The most common way to set the log level is during SDK initialization:
+
+```python
+from daily import Daily, LogLevel
+
+# Initialize with Info level logging
+Daily.init(log_level=LogLevel.Info)
+```
+
+If you don't specify a log level, the SDK defaults to `LogLevel.Off`:
+
+```python
+# Default: no logging
+Daily.init()
+
+# Equivalent to:
+Daily.init(log_level=LogLevel.Off)
+```
+
+### Changing Log Level at Runtime
+
+You can change the log level after initialization using `Daily.set_log_level()`:
+
+```python
+from daily import Daily, LogLevel
+
+# Start with no logging
+Daily.init(log_level=LogLevel.Off)
+
+# Later, enable debug logging
+Daily.set_log_level(LogLevel.Debug)
+
+# Perform some operations with debug logging
+client = CallClient()
+client.join(meeting_url)
+
+# Reduce logging verbosity
+Daily.set_log_level(LogLevel.Error)
+```
+
+## Common Patterns
+
+### Environment-Based Logging
+
+Configure logging based on environment variables:
+
+```python
+import os
+from daily import Daily, LogLevel
+
+# Map environment variable to LogLevel
+log_level_map = {
+    "off": LogLevel.Off,
+    "error": LogLevel.Error,
+    "warn": LogLevel.Warn,
+    "info": LogLevel.Info,
+    "debug": LogLevel.Debug,
+    "trace": LogLevel.Trace,
+}
+
+# Get log level from environment, default to Off
+log_level_str = os.getenv("DAILY_LOG_LEVEL", "off").lower()
+log_level = log_level_map.get(log_level_str, LogLevel.Off)
+
+Daily.init(log_level=log_level)
+```
+
+### Development vs Production
+
+Use different log levels for development and production:
+
+```python
+import os
+from daily import Daily, LogLevel
+
+# Check if running in production
+is_production = os.getenv("ENVIRONMENT") == "production"
+
+# Use Error logging in production, Info in development
+log_level = LogLevel.Error if is_production else LogLevel.Info
+
+Daily.init(log_level=log_level)
+```
+
+### Conditional Debug Logging
+
+Enable detailed logging only when troubleshooting:
+
+```python
+from daily import Daily, LogLevel
+
+# Start with minimal logging
+Daily.init(log_level=LogLevel.Error)
+
+# ... application code ...
+
+# When investigating an issue, temporarily increase verbosity
+def troubleshoot_connection_issue():
+    Daily.set_log_level(LogLevel.Debug)
+    
+    # Perform operations to debug
+    client.join(meeting_url)
+    
+    # Return to normal logging
+    Daily.set_log_level(LogLevel.Error)
+```
+
+## Complete Example
+
+```python
+from daily import Daily, CallClient, LogLevel, EventHandler
+import os
+
+class MyEventHandler(EventHandler):
+    def on_error(self, message):
+        print(f"Error occurred: {message}")
+    
+    def on_call_state_updated(self, state):
+        print(f"Call state: {state}")
+
+# Configure logging based on environment
+if os.getenv("DEBUG"):
+    log_level = LogLevel.Debug
+else:
+    log_level = LogLevel.Info
+
+# Initialize SDK with chosen log level
+Daily.init(
+    worker_threads=2,
+    log_level=log_level
+)
+
+print(f"Daily SDK initialized with log level: {log_level}")
+
+# Create and use call client
+client = CallClient(event_handler=MyEventHandler())
+
+try:
+    client.join("https://your-domain.daily.co/room")
+    
+    # If troubleshooting is needed, increase verbosity
+    if os.getenv("VERBOSE"):
+        Daily.set_log_level(LogLevel.Trace)
+    
+    # ... application logic ...
+    
+except Exception as e:
+    print(f"Exception: {e}")
+    # Temporarily enable debug logging to diagnose
+    Daily.set_log_level(LogLevel.Debug)
+    
+finally:
+    client.leave()
+```
+
+## Log Level Recommendations
+
+<CardGroup cols={2}>
+  <Card title="Production" icon="check">
+    **LogLevel.Off** or **LogLevel.Error**
+    
+    Minimize performance impact and log volume while capturing critical issues.
+  </Card>
+  
+  <Card title="Development" icon="code">
+    **LogLevel.Info**
+    
+    See important events and state changes without overwhelming detail.
+  </Card>
+  
+  <Card title="Testing" icon="flask">
+    **LogLevel.Debug**
+    
+    Get detailed diagnostic information to verify correct behavior.
+  </Card>
+  
+  <Card title="Troubleshooting" icon="bug">
+    **LogLevel.Debug** or **LogLevel.Trace**
+    
+    Maximum visibility into SDK operations for investigating issues.
+  </Card>
+</CardGroup>
+
+## Tips
+
+<Tip>
+  **Start Verbose, Then Reduce**: When developing a new feature, start with `LogLevel.Info` or `LogLevel.Debug` to understand SDK behavior, then reduce to `LogLevel.Error` or `LogLevel.Off` for production.
+</Tip>
+
+<Tip>
+  **Performance Considerations**: Higher log levels (Debug and Trace) can impact performance due to increased I/O operations. Use them judiciously in production environments.
+</Tip>
+
+<Warning>
+  **Trace Level Output**: `LogLevel.Trace` produces extremely high volumes of output and can significantly impact performance. Only use it for short debugging sessions on specific issues.
+</Warning>
+
+<Note>
+  Log output is written to standard output (stdout) and standard error (stderr). Configure your application's logging infrastructure to capture and route these messages appropriately.
+</Note>
+
+## Related
+
+- [Daily.init()](/api/daily#init) - Initialize the SDK with log level configuration
+- [Daily.set_log_level()](/api/daily#set_log_level) - Change log level at runtime
+- [EventHandler](/api/event-handler) - Handle SDK events including errors

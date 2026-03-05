@@ -1,0 +1,1543 @@
+---
+title: "CallClient"
+description: "Main client for managing Daily calls and media"
+---
+
+The `CallClient` class is the primary interface for joining calls, managing media, and controlling call features.
+
+## Constructor
+
+Creates a new CallClient instance.
+
+```python
+from daily import CallClient, EventHandler
+
+class MyEventHandler(EventHandler):
+    def on_participant_joined(self, participant):
+        print(f"Participant joined: {participant['id']}")
+
+client = CallClient(event_handler=MyEventHandler())
+```
+
+### Parameters
+
+<ParamField path="event_handler" type="Optional[EventHandler]" default="None">
+  An optional event handler instance to receive call events. See [EventHandler](/api/event-handler) for details.
+</ParamField>
+
+### Returns
+
+<ResponseField type="CallClient">
+  A new CallClient instance.
+</ResponseField>
+
+---
+
+## Connection Management
+
+### join()
+
+Joins a Daily room.
+
+```python
+client.join(
+    meeting_url="https://your-domain.daily.co/room-name",
+    meeting_token="your-meeting-token",
+    client_settings={
+        "inputs": {
+            "camera": {"isEnabled": False},
+            "microphone": {"isEnabled": True}
+        }
+    },
+    completion=lambda data, error: print(f"Joined: {data}")
+)
+```
+
+#### Parameters
+
+<ParamField path="meeting_url" type="str" required>
+  The Daily room URL to join.
+</ParamField>
+
+<ParamField path="meeting_token" type="Optional[str]" default="None">
+  Optional meeting token for authentication and permissions.
+</ParamField>
+
+<ParamField path="client_settings" type="Optional[Mapping[str, Any]]" default="None">
+  Optional dictionary of client settings (inputs, publishing, subscription profiles, etc.).
+</ParamField>
+
+<ParamField path="completion" type="Optional[Callable[[Optional[Mapping[str, Any]], Optional[str]], None]]" default="None">
+  Optional callback invoked when join completes. Receives `(data, error)` where `data` contains join information on success, or `error` contains an error message on failure.
+</ParamField>
+
+#### Returns
+
+<ResponseField type="None">
+  This method does not return a value. Use the completion callback for async results.
+</ResponseField>
+
+---
+
+### leave()
+
+Leaves the current Daily room.
+
+```python
+client.leave(
+    completion=lambda error: print("Left call" if not error else f"Error: {error}")
+)
+```
+
+#### Parameters
+
+<ParamField path="completion" type="Optional[Callable[[Optional[str]], None]]" default="None">
+  Optional callback invoked when leave completes. Receives an optional error message.
+</ParamField>
+
+#### Returns
+
+<ResponseField type="None">
+  This method does not return a value. Use the completion callback for async results.
+</ResponseField>
+
+---
+
+### release()
+
+Releases all resources associated with the CallClient. Should be called when you're done with the client.
+
+```python
+client.release()
+```
+
+#### Returns
+
+<ResponseField type="None">
+  This method does not return a value.
+</ResponseField>
+
+---
+
+## Participant Management
+
+### participants()
+
+Gets the current participants in the call.
+
+```python
+participants = client.participants()
+for participant_id, participant_info in participants.items():
+    print(f"{participant_id}: {participant_info['info']['userName']}")
+```
+
+#### Returns
+
+<ResponseField type="Mapping[str, Any]">
+  A dictionary mapping participant IDs to participant information objects.
+</ResponseField>
+
+---
+
+### participant_counts()
+
+Gets the current participant counts.
+
+```python
+counts = client.participant_counts()
+print(f"Present: {counts['present']}, Hidden: {counts['hidden']}")
+```
+
+#### Returns
+
+<ResponseField type="Mapping[str, Any]">
+  A dictionary containing participant count information (present, hidden, etc.).
+</ResponseField>
+
+---
+
+### active_speaker()
+
+Gets information about the current active speaker.
+
+```python
+speaker = client.active_speaker()
+if speaker:
+    print(f"Active speaker: {speaker['participantId']}")
+```
+
+#### Returns
+
+<ResponseField type="Mapping[str, Any]">
+  A dictionary containing active speaker information.
+</ResponseField>
+
+---
+
+### set_user_name()
+
+Sets the user name for the local participant.
+
+```python
+client.set_user_name("Bot User")
+```
+
+#### Parameters
+
+<ParamField path="user_name" type="str" required>
+  The display name for the local participant.
+</ParamField>
+
+#### Returns
+
+<ResponseField type="None">
+  This method does not return a value.
+</ResponseField>
+
+---
+
+### update_remote_participants()
+
+Updates settings for remote participants.
+
+```python
+client.update_remote_participants(
+    remote_participants={
+        "participant-id": {
+            "setAudio": False,
+            "setVideo": False
+        }
+    },
+    completion=lambda error: print("Updated" if not error else f"Error: {error}")
+)
+```
+
+#### Parameters
+
+<ParamField path="remote_participants" type="Mapping[str, Any]" required>
+  Dictionary mapping participant IDs to their settings updates.
+</ParamField>
+
+<ParamField path="completion" type="Optional[Callable[[Optional[str]], None]]" default="None">
+  Optional callback invoked when update completes. Receives an optional error message.
+</ParamField>
+
+#### Returns
+
+<ResponseField type="None">
+  This method does not return a value. Use the completion callback for async results.
+</ResponseField>
+
+---
+
+### eject_remote_participants()
+
+Ejects one or more participants from the call.
+
+```python
+client.eject_remote_participants(
+    ids=["participant-id-1", "participant-id-2"],
+    completion=lambda error: print("Ejected" if not error else f"Error: {error}")
+)
+```
+
+#### Parameters
+
+<ParamField path="ids" type="List[str]" required>
+  List of participant IDs to eject from the call.
+</ParamField>
+
+<ParamField path="completion" type="Optional[Callable[[Optional[str]], None]]" default="None">
+  Optional callback invoked when eject completes. Receives an optional error message.
+</ParamField>
+
+#### Returns
+
+<ResponseField type="None">
+  This method does not return a value. Use the completion callback for async results.
+</ResponseField>
+
+---
+
+## Media Input Management
+
+### inputs()
+
+Gets the current input settings (camera, microphone).
+
+```python
+inputs = client.inputs()
+print(f"Camera enabled: {inputs['camera']['isEnabled']}")
+print(f"Microphone enabled: {inputs['microphone']['isEnabled']}")
+```
+
+#### Returns
+
+<ResponseField type="Mapping[str, Any]">
+  A dictionary containing current input settings.
+</ResponseField>
+
+---
+
+### update_inputs()
+
+Updates input settings for camera and microphone.
+
+```python
+client.update_inputs(
+    input_settings={
+        "camera": {
+            "isEnabled": True,
+            "settings": {
+                "deviceId": "my-camera"
+            }
+        },
+        "microphone": {
+            "isEnabled": True,
+            "settings": {
+                "deviceId": "my-microphone"
+            }
+        }
+    },
+    completion=lambda error: print("Updated" if not error else f"Error: {error}")
+)
+```
+
+#### Parameters
+
+<ParamField path="input_settings" type="Mapping[str, Any]" required>
+  Dictionary containing input configuration (camera, microphone settings).
+</ParamField>
+
+<ParamField path="completion" type="Optional[Callable[[Optional[str]], None]]" default="None">
+  Optional callback invoked when update completes. Receives an optional error message.
+</ParamField>
+
+#### Returns
+
+<ResponseField type="None">
+  This method does not return a value. Use the completion callback for async results.
+</ResponseField>
+
+---
+
+## Publishing Management
+
+### publishing()
+
+Gets the current publishing settings.
+
+```python
+publishing = client.publishing()
+print(f"Camera publishing: {publishing['camera']['isPublishing']}")
+print(f"Microphone publishing: {publishing['microphone']['isPublishing']}")
+```
+
+#### Returns
+
+<ResponseField type="Mapping[str, Any]">
+  A dictionary containing current publishing settings.
+</ResponseField>
+
+---
+
+### update_publishing()
+
+Updates publishing settings for camera, microphone, and custom tracks.
+
+```python
+client.update_publishing(
+    publishing_settings={
+        "camera": {"isPublishing": True},
+        "microphone": {"isPublishing": True}
+    },
+    completion=lambda error: print("Updated" if not error else f"Error: {error}")
+)
+```
+
+#### Parameters
+
+<ParamField path="publishing_settings" type="Mapping[str, Any]" required>
+  Dictionary containing publishing configuration.
+</ParamField>
+
+<ParamField path="completion" type="Optional[Callable[[Optional[str]], None]]" default="None">
+  Optional callback invoked when update completes. Receives an optional error message.
+</ParamField>
+
+#### Returns
+
+<ResponseField type="None">
+  This method does not return a value. Use the completion callback for async results.
+</ResponseField>
+
+---
+
+## Subscription Management
+
+### subscriptions()
+
+Gets the current subscription settings.
+
+```python
+subscriptions = client.subscriptions()
+for participant_id, settings in subscriptions.items():
+    print(f"{participant_id}: {settings}")
+```
+
+#### Returns
+
+<ResponseField type="Mapping[str, Any]">
+  A dictionary containing current subscription settings for participants.
+</ResponseField>
+
+---
+
+### update_subscriptions()
+
+Updates subscription settings for specific participants or using profiles.
+
+```python
+client.update_subscriptions(
+    participant_settings={
+        "participant-id": {
+            "media": "subscribed"
+        }
+    },
+    profile_settings={
+        "base": {
+            "camera": "subscribed",
+            "microphone": "subscribed"
+        }
+    },
+    completion=lambda error: print("Updated" if not error else f"Error: {error}")
+)
+```
+
+#### Parameters
+
+<ParamField path="participant_settings" type="Optional[Mapping[str, Any]]" default="None">
+  Optional dictionary mapping participant IDs to subscription settings.
+</ParamField>
+
+<ParamField path="profile_settings" type="Optional[Mapping[str, Any]]" default="None">
+  Optional dictionary of subscription profile settings.
+</ParamField>
+
+<ParamField path="completion" type="Optional[Callable[[Optional[str]], None]]" default="None">
+  Optional callback invoked when update completes. Receives an optional error message.
+</ParamField>
+
+#### Returns
+
+<ResponseField type="None">
+  This method does not return a value. Use the completion callback for async results.
+</ResponseField>
+
+---
+
+### subscription_profiles()
+
+Gets the current subscription profiles.
+
+```python
+profiles = client.subscription_profiles()
+print(f"Profiles: {profiles}")
+```
+
+#### Returns
+
+<ResponseField type="Mapping[str, Any]">
+  A dictionary containing subscription profile configurations.
+</ResponseField>
+
+---
+
+### update_subscription_profiles()
+
+Updates subscription profile settings.
+
+```python
+client.update_subscription_profiles(
+    profile_settings={
+        "high-quality": {
+            "camera": {
+                "subscriptionState": "subscribed",
+                "settings": {"maxQuality": "high"}
+            }
+        }
+    },
+    completion=lambda error: print("Updated" if not error else f"Error: {error}")
+)
+```
+
+#### Parameters
+
+<ParamField path="profile_settings" type="Mapping[str, Any]" required>
+  Dictionary containing subscription profile configurations.
+</ParamField>
+
+<ParamField path="completion" type="Optional[Callable[[Optional[str]], None]]" default="None">
+  Optional callback invoked when update completes. Receives an optional error message.
+</ParamField>
+
+#### Returns
+
+<ResponseField type="None">
+  This method does not return a value. Use the completion callback for async results.
+</ResponseField>
+
+---
+
+## Permissions
+
+### update_permissions()
+
+Updates permissions for participants in the call.
+
+```python
+client.update_permissions(
+    permissions={
+        "hasPresence": True,
+        "canSend": ["camera", "microphone"],
+        "canAdmin": False
+    },
+    completion=lambda error: print("Updated" if not error else f"Error: {error}")
+)
+```
+
+#### Parameters
+
+<ParamField path="permissions" type="Mapping[str, Any]" required>
+  Dictionary containing permission settings.
+</ParamField>
+
+<ParamField path="completion" type="Optional[Callable[[Optional[str]], None]]" default="None">
+  Optional callback invoked when update completes. Receives an optional error message.
+</ParamField>
+
+#### Returns
+
+<ResponseField type="None">
+  This method does not return a value. Use the completion callback for async results.
+</ResponseField>
+
+---
+
+## Custom Audio Tracks
+
+### add_custom_audio_track()
+
+Adds a custom audio track to the call.
+
+```python
+from daily import CustomAudioSource, CustomAudioTrack
+
+audio_source = CustomAudioSource(sample_rate=16000, channels=1)
+audio_track = CustomAudioTrack(audio_source)
+
+client.add_custom_audio_track(
+    track_name="music-track",
+    audio_track=audio_track,
+    ignore_audio_level=False,
+    completion=lambda error: print("Added" if not error else f"Error: {error}")
+)
+```
+
+#### Parameters
+
+<ParamField path="track_name" type="str" required>
+  Name identifier for the custom audio track.
+</ParamField>
+
+<ParamField path="audio_track" type="CustomAudioTrack" required>
+  The custom audio track instance to add.
+</ParamField>
+
+<ParamField path="ignore_audio_level" type="Optional[bool]" default="None">
+  If `True`, audio level detection is disabled for this track.
+</ParamField>
+
+<ParamField path="completion" type="Optional[Callable[[Optional[str]], None]]" default="None">
+  Optional callback invoked when operation completes. Receives an optional error message.
+</ParamField>
+
+#### Returns
+
+<ResponseField type="None">
+  This method does not return a value. Use the completion callback for async results.
+</ResponseField>
+
+---
+
+### update_custom_audio_track()
+
+Updates an existing custom audio track.
+
+```python
+client.update_custom_audio_track(
+    track_name="music-track",
+    audio_track=new_audio_track,
+    ignore_audio_level=True,
+    completion=lambda error: print("Updated" if not error else f"Error: {error}")
+)
+```
+
+#### Parameters
+
+<ParamField path="track_name" type="str" required>
+  Name identifier of the custom audio track to update.
+</ParamField>
+
+<ParamField path="audio_track" type="CustomAudioTrack" required>
+  The new custom audio track instance.
+</ParamField>
+
+<ParamField path="ignore_audio_level" type="Optional[bool]" default="None">
+  If `True`, audio level detection is disabled for this track.
+</ParamField>
+
+<ParamField path="completion" type="Optional[Callable[[Optional[str]], None]]" default="None">
+  Optional callback invoked when operation completes. Receives an optional error message.
+</ParamField>
+
+#### Returns
+
+<ResponseField type="None">
+  This method does not return a value. Use the completion callback for async results.
+</ResponseField>
+
+---
+
+### remove_custom_audio_track()
+
+Removes a custom audio track from the call.
+
+```python
+client.remove_custom_audio_track(
+    track_name="music-track",
+    completion=lambda error: print("Removed" if not error else f"Error: {error}")
+)
+```
+
+#### Parameters
+
+<ParamField path="track_name" type="str" required>
+  Name identifier of the custom audio track to remove.
+</ParamField>
+
+<ParamField path="completion" type="Optional[Callable[[Optional[str]], None]]" default="None">
+  Optional callback invoked when operation completes. Receives an optional error message.
+</ParamField>
+
+#### Returns
+
+<ResponseField type="None">
+  This method does not return a value. Use the completion callback for async results.
+</ResponseField>
+
+---
+
+## Recording
+
+### start_recording()
+
+Starts recording the call.
+
+```python
+client.start_recording(
+    streaming_settings={
+        "width": 1280,
+        "height": 720,
+        "fps": 30
+    },
+    stream_id="my-recording",
+    force_new=False,
+    completion=lambda stream_id, error: print(f"Recording started: {stream_id}" if not error else f"Error: {error}")
+)
+```
+
+#### Parameters
+
+<ParamField path="streaming_settings" type="Optional[Mapping[str, Any]]" default="None">
+  Optional dictionary containing recording configuration (width, height, fps, etc.).
+</ParamField>
+
+<ParamField path="stream_id" type="Optional[str]" default="None">
+  Optional identifier for the recording stream.
+</ParamField>
+
+<ParamField path="force_new" type="Optional[bool]" default="None">
+  If `True`, forces creation of a new recording even if one exists.
+</ParamField>
+
+<ParamField path="completion" type="Optional[Callable[[str, Optional[str]], None]]" default="None">
+  Optional callback invoked when recording starts. Receives `(stream_id, error)`.
+</ParamField>
+
+#### Returns
+
+<ResponseField type="None">
+  This method does not return a value. Use the completion callback for async results.
+</ResponseField>
+
+---
+
+### stop_recording()
+
+Stops an active recording.
+
+```python
+client.stop_recording(
+    stream_id="my-recording",
+    completion=lambda error: print("Stopped" if not error else f"Error: {error}")
+)
+```
+
+#### Parameters
+
+<ParamField path="stream_id" type="Optional[str]" default="None">
+  Optional identifier of the recording stream to stop. If not provided, stops the default recording.
+</ParamField>
+
+<ParamField path="completion" type="Optional[Callable[[Optional[str]], None]]" default="None">
+  Optional callback invoked when operation completes. Receives an optional error message.
+</ParamField>
+
+#### Returns
+
+<ResponseField type="None">
+  This method does not return a value. Use the completion callback for async results.
+</ResponseField>
+
+---
+
+### update_recording()
+
+Updates settings for an active recording.
+
+```python
+client.update_recording(
+    update_settings={
+        "layout": {"preset": "speaker-active"}
+    },
+    stream_id="my-recording",
+    completion=lambda error: print("Updated" if not error else f"Error: {error}")
+)
+```
+
+#### Parameters
+
+<ParamField path="update_settings" type="Mapping[str, Any]" required>
+  Dictionary containing recording settings to update.
+</ParamField>
+
+<ParamField path="stream_id" type="Optional[str]" default="None">
+  Optional identifier of the recording stream to update.
+</ParamField>
+
+<ParamField path="completion" type="Optional[Callable[[Optional[str]], None]]" default="None">
+  Optional callback invoked when operation completes. Receives an optional error message.
+</ParamField>
+
+#### Returns
+
+<ResponseField type="None">
+  This method does not return a value. Use the completion callback for async results.
+</ResponseField>
+
+---
+
+## Live Streaming
+
+### start_live_stream_with_endpoints()
+
+Starts live streaming to specified endpoints.
+
+```python
+client.start_live_stream_with_endpoints(
+    endpoints=["https://example.com/stream"],
+    streaming_settings={
+        "width": 1920,
+        "height": 1080,
+        "fps": 30
+    },
+    stream_id="my-stream",
+    force_new=False,
+    completion=lambda error: print("Started" if not error else f"Error: {error}")
+)
+```
+
+#### Parameters
+
+<ParamField path="endpoints" type="Optional[List[str]]" required>
+  List of streaming endpoint URLs.
+</ParamField>
+
+<ParamField path="streaming_settings" type="Optional[Mapping[str, Any]]" default="None">
+  Optional dictionary containing streaming configuration.
+</ParamField>
+
+<ParamField path="stream_id" type="Optional[str]" default="None">
+  Optional identifier for the stream.
+</ParamField>
+
+<ParamField path="force_new" type="Optional[bool]" default="None">
+  If `True`, forces creation of a new stream even if one exists.
+</ParamField>
+
+<ParamField path="completion" type="Optional[Callable[[Optional[str]], None]]" default="None">
+  Optional callback invoked when operation completes. Receives an optional error message.
+</ParamField>
+
+#### Returns
+
+<ResponseField type="None">
+  This method does not return a value. Use the completion callback for async results.
+</ResponseField>
+
+---
+
+### start_live_stream_with_rtmp_urls()
+
+Starts live streaming to RTMP URLs.
+
+```python
+client.start_live_stream_with_rtmp_urls(
+    rtmp_urls=["rtmp://a.rtmp.youtube.com/live2/your-stream-key"],
+    streaming_settings={
+        "width": 1920,
+        "height": 1080,
+        "fps": 30
+    },
+    stream_id="youtube-stream",
+    force_new=False,
+    completion=lambda error: print("Started" if not error else f"Error: {error}")
+)
+```
+
+#### Parameters
+
+<ParamField path="rtmp_urls" type="Optional[List[str]]" required>
+  List of RTMP streaming URLs.
+</ParamField>
+
+<ParamField path="streaming_settings" type="Optional[Mapping[str, Any]]" default="None">
+  Optional dictionary containing streaming configuration.
+</ParamField>
+
+<ParamField path="stream_id" type="Optional[str]" default="None">
+  Optional identifier for the stream.
+</ParamField>
+
+<ParamField path="force_new" type="Optional[bool]" default="None">
+  If `True`, forces creation of a new stream even if one exists.
+</ParamField>
+
+<ParamField path="completion" type="Optional[Callable[[Optional[str]], None]]" default="None">
+  Optional callback invoked when operation completes. Receives an optional error message.
+</ParamField>
+
+#### Returns
+
+<ResponseField type="None">
+  This method does not return a value. Use the completion callback for async results.
+</ResponseField>
+
+---
+
+### stop_live_stream()
+
+Stops an active live stream.
+
+```python
+client.stop_live_stream(
+    stream_id="my-stream",
+    completion=lambda error: print("Stopped" if not error else f"Error: {error}")
+)
+```
+
+#### Parameters
+
+<ParamField path="stream_id" type="Optional[str]" default="None">
+  Optional identifier of the stream to stop.
+</ParamField>
+
+<ParamField path="completion" type="Optional[Callable[[Optional[str]], None]]" default="None">
+  Optional callback invoked when operation completes. Receives an optional error message.
+</ParamField>
+
+#### Returns
+
+<ResponseField type="None">
+  This method does not return a value. Use the completion callback for async results.
+</ResponseField>
+
+---
+
+### update_live_stream()
+
+Updates settings for an active live stream.
+
+```python
+client.update_live_stream(
+    update_settings={
+        "layout": {"preset": "grid"}
+    },
+    stream_id="my-stream",
+    completion=lambda error: print("Updated" if not error else f"Error: {error}")
+)
+```
+
+#### Parameters
+
+<ParamField path="update_settings" type="Mapping[str, Any]" required>
+  Dictionary containing streaming settings to update.
+</ParamField>
+
+<ParamField path="stream_id" type="Optional[str]" default="None">
+  Optional identifier of the stream to update.
+</ParamField>
+
+<ParamField path="completion" type="Optional[Callable[[Optional[str]], None]]" default="None">
+  Optional callback invoked when operation completes. Receives an optional error message.
+</ParamField>
+
+#### Returns
+
+<ResponseField type="None">
+  This method does not return a value. Use the completion callback for async results.
+</ResponseField>
+
+---
+
+### add_live_streaming_endpoings()
+
+Adds endpoints to an active live stream.
+
+```python
+client.add_live_streaming_endpoings(
+    endpoints=["https://example.com/new-endpoint"],
+    stream_id="my-stream",
+    completion=lambda error: print("Added" if not error else f"Error: {error}")
+)
+```
+
+#### Parameters
+
+<ParamField path="endpoints" type="List[str]" required>
+  List of streaming endpoint URLs to add.
+</ParamField>
+
+<ParamField path="stream_id" type="Optional[str]" default="None">
+  Optional identifier of the stream.
+</ParamField>
+
+<ParamField path="completion" type="Optional[Callable[[Optional[str]], None]]" default="None">
+  Optional callback invoked when operation completes. Receives an optional error message.
+</ParamField>
+
+#### Returns
+
+<ResponseField type="None">
+  This method does not return a value. Use the completion callback for async results.
+</ResponseField>
+
+---
+
+### remove_live_streaming_endpoings()
+
+Removes endpoints from an active live stream.
+
+```python
+client.remove_live_streaming_endpoings(
+    endpoints=["https://example.com/endpoint-to-remove"],
+    stream_id="my-stream",
+    completion=lambda error: print("Removed" if not error else f"Error: {error}")
+)
+```
+
+#### Parameters
+
+<ParamField path="endpoints" type="List[str]" required>
+  List of streaming endpoint URLs to remove.
+</ParamField>
+
+<ParamField path="stream_id" type="Optional[str]" default="None">
+  Optional identifier of the stream.
+</ParamField>
+
+<ParamField path="completion" type="Optional[Callable[[Optional[str]], None]]" default="None">
+  Optional callback invoked when operation completes. Receives an optional error message.
+</ParamField>
+
+#### Returns
+
+<ResponseField type="None">
+  This method does not return a value. Use the completion callback for async results.
+</ResponseField>
+
+---
+
+## Transcription
+
+### start_transcription()
+
+Starts real-time transcription of the call.
+
+```python
+client.start_transcription(
+    settings={
+        "language": "en",
+        "model": "nova-2",
+        "profanity_filter": True
+    },
+    completion=lambda error: print("Started" if not error else f"Error: {error}")
+)
+```
+
+#### Parameters
+
+<ParamField path="settings" type="Optional[Mapping[str, Any]]" default="None">
+  Optional dictionary containing transcription configuration.
+</ParamField>
+
+<ParamField path="completion" type="Optional[Callable[[Optional[str]], None]]" default="None">
+  Optional callback invoked when operation completes. Receives an optional error message.
+</ParamField>
+
+#### Returns
+
+<ResponseField type="None">
+  This method does not return a value. Use the completion callback for async results.
+</ResponseField>
+
+---
+
+### stop_transcription()
+
+Stops active transcription.
+
+```python
+client.stop_transcription(
+    completion=lambda error: print("Stopped" if not error else f"Error: {error}")
+)
+```
+
+#### Parameters
+
+<ParamField path="completion" type="Optional[Callable[[Optional[str]], None]]" default="None">
+  Optional callback invoked when operation completes. Receives an optional error message.
+</ParamField>
+
+#### Returns
+
+<ResponseField type="None">
+  This method does not return a value. Use the completion callback for async results.
+</ResponseField>
+
+---
+
+### update_transcription()
+
+Updates transcription settings.
+
+```python
+client.update_transcription(
+    participants=["participant-id-1", "participant-id-2"],
+    instance_id="transcription-instance",
+    completion=lambda error: print("Updated" if not error else f"Error: {error}")
+)
+```
+
+#### Parameters
+
+<ParamField path="participants" type="Optional[List[str]]" default="None">
+  Optional list of participant IDs to include in transcription.
+</ParamField>
+
+<ParamField path="instance_id" type="Optional[str]" default="None">
+  Optional transcription instance identifier.
+</ParamField>
+
+<ParamField path="completion" type="Optional[Callable[[Optional[str]], None]]" default="None">
+  Optional callback invoked when operation completes. Receives an optional error message.
+</ParamField>
+
+#### Returns
+
+<ResponseField type="None">
+  This method does not return a value. Use the completion callback for async results.
+</ResponseField>
+
+---
+
+## SIP and Dialout
+
+### start_dialout()
+
+Starts a SIP dialout to connect an external phone number.
+
+```python
+client.start_dialout(
+    settings={
+        "phoneNumber": "+1234567890",
+        "callerId": "+0987654321"
+    },
+    completion=lambda participant_id, error: print(f"Dialout started: {participant_id}" if not error else f"Error: {error}")
+)
+```
+
+#### Parameters
+
+<ParamField path="settings" type="Optional[Mapping[str, Any]]" default="None">
+  Optional dictionary containing dialout configuration (phone number, caller ID, etc.).
+</ParamField>
+
+<ParamField path="completion" type="Optional[Callable[[str, Optional[str]], None]]" default="None">
+  Optional callback invoked when dialout starts. Receives `(participant_id, error)`.
+</ParamField>
+
+#### Returns
+
+<ResponseField type="None">
+  This method does not return a value. Use the completion callback for async results.
+</ResponseField>
+
+---
+
+### stop_dialout()
+
+Stops an active SIP dialout connection.
+
+```python
+client.stop_dialout(
+    participant_id="sip-participant-id",
+    completion=lambda error: print("Stopped" if not error else f"Error: {error}")
+)
+```
+
+#### Parameters
+
+<ParamField path="participant_id" type="Optional[str]" default="None">
+  Optional participant ID of the SIP connection to stop.
+</ParamField>
+
+<ParamField path="completion" type="Optional[Callable[[Optional[str]], None]]" default="None">
+  Optional callback invoked when operation completes. Receives an optional error message.
+</ParamField>
+
+#### Returns
+
+<ResponseField type="None">
+  This method does not return a value. Use the completion callback for async results.
+</ResponseField>
+
+---
+
+### send_dtmf()
+
+Sends DTMF tones during a SIP call.
+
+```python
+client.send_dtmf(
+    settings={
+        "participantId": "sip-participant-id",
+        "tones": "1234#"
+    },
+    completion=lambda error: print("Sent" if not error else f"Error: {error}")
+)
+```
+
+#### Parameters
+
+<ParamField path="settings" type="Optional[Mapping[str, Any]]" default="None">
+  Optional dictionary containing DTMF settings (participant ID, tones).
+</ParamField>
+
+<ParamField path="completion" type="Optional[Callable[[Optional[str]], None]]" default="None">
+  Optional callback invoked when operation completes. Receives an optional error message.
+</ParamField>
+
+#### Returns
+
+<ResponseField type="None">
+  This method does not return a value. Use the completion callback for async results.
+</ResponseField>
+
+---
+
+### sip_call_transfer()
+
+Transfers a SIP call to another number.
+
+```python
+client.sip_call_transfer(
+    settings={
+        "participantId": "sip-participant-id",
+        "transferTo": "+1234567890"
+    },
+    completion=lambda error: print("Transferred" if not error else f"Error: {error}")
+)
+```
+
+#### Parameters
+
+<ParamField path="settings" type="Optional[Mapping[str, Any]]" default="None">
+  Optional dictionary containing transfer settings.
+</ParamField>
+
+<ParamField path="completion" type="Optional[Callable[[Optional[str]], None]]" default="None">
+  Optional callback invoked when operation completes. Receives an optional error message.
+</ParamField>
+
+#### Returns
+
+<ResponseField type="None">
+  This method does not return a value. Use the completion callback for async results.
+</ResponseField>
+
+---
+
+### sip_refer()
+
+Sends a SIP REFER request.
+
+```python
+client.sip_refer(
+    settings={
+        "participantId": "sip-participant-id",
+        "referTo": "sip:user@example.com"
+    },
+    completion=lambda error: print("Sent" if not error else f"Error: {error}")
+)
+```
+
+#### Parameters
+
+<ParamField path="settings" type="Optional[Mapping[str, Any]]" default="None">
+  Optional dictionary containing REFER settings.
+</ParamField>
+
+<ParamField path="completion" type="Optional[Callable[[Optional[str]], None]]" default="None">
+  Optional callback invoked when operation completes. Receives an optional error message.
+</ParamField>
+
+#### Returns
+
+<ResponseField type="None">
+  This method does not return a value. Use the completion callback for async results.
+</ResponseField>
+
+---
+
+## Messaging
+
+### send_app_message()
+
+Sends an application message to participants.
+
+```python
+client.send_app_message(
+    message={"type": "custom", "data": "hello"},
+    participant_id="specific-participant",
+    serialize_none=True,
+    completion=lambda error: print("Sent" if not error else f"Error: {error}")
+)
+```
+
+#### Parameters
+
+<ParamField path="message" type="Any" required>
+  The message payload to send (can be any JSON-serializable object).
+</ParamField>
+
+<ParamField path="participant_id" type="Optional[str]" default="None">
+  Optional participant ID. If not provided, message is sent to all participants.
+</ParamField>
+
+<ParamField path="serialize_none" type="bool" default="True">
+  If `True`, serializes `None` values in the message.
+</ParamField>
+
+<ParamField path="completion" type="Optional[Callable[[Optional[str]], None]]" default="None">
+  Optional callback invoked when operation completes. Receives an optional error message.
+</ParamField>
+
+#### Returns
+
+<ResponseField type="None">
+  This method does not return a value. Use the completion callback for async results.
+</ResponseField>
+
+---
+
+### send_prebuilt_chat_message()
+
+Sends a chat message in Daily Prebuilt format.
+
+```python
+client.send_prebuilt_chat_message(
+    message="Hello everyone!",
+    user_name="Bot User",
+    completion=lambda error: print("Sent" if not error else f"Error: {error}")
+)
+```
+
+#### Parameters
+
+<ParamField path="message" type="str" required>
+  The chat message text to send.
+</ParamField>
+
+<ParamField path="user_name" type="Optional[str]" default="None">
+  Optional user name to display with the message.
+</ParamField>
+
+<ParamField path="completion" type="Optional[Callable[[Optional[str]], None]]" default="None">
+  Optional callback invoked when operation completes. Receives an optional error message.
+</ParamField>
+
+#### Returns
+
+<ResponseField type="None">
+  This method does not return a value. Use the completion callback for async results.
+</ResponseField>
+
+---
+
+## Media Renderers
+
+### set_audio_renderer()
+
+Sets a callback to receive raw audio data from a participant.
+
+```python
+def audio_callback(participant_id: str, audio_data: AudioData, source: str):
+    print(f"Received {audio_data.num_audio_frames} frames from {participant_id}")
+    # Process audio_data.audio_frames (bytes)
+
+client.set_audio_renderer(
+    participant_id="participant-id",
+    callback=audio_callback,
+    audio_source="microphone",
+    sample_rate=16000,
+    callback_interval_ms=20
+)
+```
+
+#### Parameters
+
+<ParamField path="participant_id" type="str" required>
+  The participant ID to receive audio from.
+</ParamField>
+
+<ParamField path="callback" type="Callable[[str, AudioData, str], None]" required>
+  Callback function that receives `(participant_id, audio_data, audio_source)`.
+</ParamField>
+
+<ParamField path="audio_source" type="str" default="microphone">
+  Audio source to receive ("microphone" or custom track name).
+</ParamField>
+
+<ParamField path="sample_rate" type="int" default="16000">
+  Desired sample rate in Hz for the audio data.
+</ParamField>
+
+<ParamField path="callback_interval_ms" type="int" default="20">
+  Interval in milliseconds between callback invocations.
+</ParamField>
+
+#### Returns
+
+<ResponseField type="None">
+  This method does not return a value.
+</ResponseField>
+
+---
+
+### set_video_renderer()
+
+Sets a callback to receive raw video frames from a participant.
+
+```python
+def video_callback(participant_id: str, video_frame: VideoFrame, source: str):
+    print(f"Received frame {video_frame.width}x{video_frame.height} from {participant_id}")
+    # Process video_frame.buffer (bytes)
+
+client.set_video_renderer(
+    participant_id="participant-id",
+    callback=video_callback,
+    video_source="camera",
+    color_format="RGBA"
+)
+```
+
+#### Parameters
+
+<ParamField path="participant_id" type="str" required>
+  The participant ID to receive video from.
+</ParamField>
+
+<ParamField path="callback" type="Callable[[str, VideoFrame, str], None]" required>
+  Callback function that receives `(participant_id, video_frame, video_source)`.
+</ParamField>
+
+<ParamField path="video_source" type="str" default="camera">
+  Video source to receive ("camera" or "screenVideo").
+</ParamField>
+
+<ParamField path="color_format" type="str" default="RGBA">
+  Desired color format for video frames ("RGBA", "RGB", "BGRA", "BGR").
+</ParamField>
+
+#### Returns
+
+<ResponseField type="None">
+  This method does not return a value.
+</ResponseField>
+
+---
+
+## Network Configuration
+
+### get_network_stats()
+
+Gets current network statistics.
+
+```python
+stats = client.get_network_stats()
+print(f"Bitrate: {stats['stats']['latest']['videoSendBitsPerSecond']}")
+```
+
+#### Returns
+
+<ResponseField type="Mapping[str, Any]">
+  A dictionary containing network statistics.
+</ResponseField>
+
+---
+
+### set_proxy_url()
+
+Configures a proxy server for network connections.
+
+```python
+client.set_proxy_url(
+    proxy_url="http://proxy.example.com:8080",
+    completion=lambda error: print("Set" if not error else f"Error: {error}")
+)
+```
+
+#### Parameters
+
+<ParamField path="proxy_url" type="Optional[str]" default="None">
+  Proxy server URL, or `None` to clear proxy settings.
+</ParamField>
+
+<ParamField path="completion" type="Optional[Callable[[Optional[str]], None]]" default="None">
+  Optional callback invoked when operation completes. Receives an optional error message.
+</ParamField>
+
+#### Returns
+
+<ResponseField type="None">
+  This method does not return a value. Use the completion callback for async results.
+</ResponseField>
+
+---
+
+### set_ice_config()
+
+Configures ICE (Interactive Connectivity Establishment) settings.
+
+```python
+client.set_ice_config(
+    ice_config={
+        "iceServers": [
+            {"urls": "stun:stun.l.google.com:19302"},
+            {"urls": "turn:turn.example.com:3478", "username": "user", "credential": "pass"}
+        ]
+    },
+    completion=lambda error: print("Set" if not error else f"Error: {error}")
+)
+```
+
+#### Parameters
+
+<ParamField path="ice_config" type="Optional[Mapping[str, Any]]" default="None">
+  ICE configuration dictionary, or `None` to use default settings.
+</ParamField>
+
+<ParamField path="completion" type="Optional[Callable[[Optional[str]], None]]" default="None">
+  Optional callback invoked when operation completes. Receives an optional error message.
+</ParamField>
+
+#### Returns
+
+<ResponseField type="None">
+  This method does not return a value. Use the completion callback for async results.
+</ResponseField>
+
+---
+
+## Complete Example
+
+```python
+from daily import Daily, CallClient, EventHandler, LogLevel
+import time
+
+class MyEventHandler(EventHandler):
+    def on_participant_joined(self, participant):
+        print(f"Participant joined: {participant['info']['userName']}")
+    
+    def on_participant_left(self, participant, reason):
+        print(f"Participant left: {participant['info']['userName']} ({reason})")
+    
+    def on_call_state_updated(self, state):
+        print(f"Call state: {state}")
+
+# Initialize SDK
+Daily.init(worker_threads=2, log_level=LogLevel.Info)
+
+# Create virtual devices
+mic = Daily.create_microphone_device("bot-mic", sample_rate=16000)
+camera = Daily.create_camera_device("bot-camera", width=1280, height=720)
+
+# Create client with event handler
+client = CallClient(event_handler=MyEventHandler())
+
+# Configure inputs
+client.update_inputs({
+    "microphone": {"isEnabled": True, "settings": {"deviceId": "bot-mic"}},
+    "camera": {"isEnabled": True, "settings": {"deviceId": "bot-camera"}}
+})
+
+# Join call
+def on_joined(data, error):
+    if error:
+        print(f"Join error: {error}")
+    else:
+        print(f"Joined as {data['participants']['local']['info']['userName']}")
+
+client.join(
+    meeting_url="https://your-domain.daily.co/room-name",
+    client_settings={"userName": "My Bot"},
+    completion=on_joined
+)
+
+# Keep the bot running
+try:
+    while True:
+        # Write media to virtual devices
+        # mic.write_frames(audio_data)
+        # camera.write_frame(video_data)
+        time.sleep(0.1)
+except KeyboardInterrupt:
+    pass
+
+# Clean up
+client.leave()
+client.release()
+Daily.deinit()
+```

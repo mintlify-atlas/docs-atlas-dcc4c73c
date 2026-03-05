@@ -1,0 +1,503 @@
+---
+title: "Recording and Streaming"
+description: "Learn how to record meetings and stream to RTMP endpoints with the Daily Python SDK"
+---
+
+## Overview
+
+The Daily Python SDK provides powerful recording and streaming capabilities, allowing you to record meetings for later playback or stream them live to RTMP endpoints. This guide covers cloud recording, RTMP streaming, and managing recording/streaming sessions.
+
+## Cloud Recording
+
+Cloud recording captures your meeting audio and video and stores it in the cloud for later access.
+
+### Starting a Recording
+
+Use `start_recording()` to begin recording a meeting:
+
+```python
+from daily import CallClient
+
+client = CallClient()
+
+def on_recording_started(stream_id, error):
+    if error:
+        print(f"Failed to start recording: {error}")
+    else:
+        print(f"Recording started with ID: {stream_id}")
+
+# Start recording with default settings
+client.start_recording(completion=on_recording_started)
+```
+
+### Recording with Custom Settings
+
+Customize recording quality and behavior:
+
+```python
+streaming_settings = {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "videoBitrate": 4000,  # kbps
+    "audioBitrate": 128,   # kbps
+    "backgroundColor": "#000000",
+    "maxDuration": 3600,   # seconds (1 hour)
+    "minIdleTimeOut": 300  # seconds (5 minutes)
+}
+
+client.start_recording(
+    streaming_settings=streaming_settings,
+    completion=on_recording_started
+)
+```
+
+### Recording Settings
+
+| Setting | Type | Description |
+|---------|------|-------------|
+| `width` | `int` | Video width in pixels (default: 1280) |
+| `height` | `int` | Video height in pixels (default: 720) |
+| `fps` | `int` | Frames per second (default: 25) |
+| `videoBitrate` | `int` | Video bitrate in kbps (default: 2000) |
+| `audioBitrate` | `int` | Audio bitrate in kbps (default: 128) |
+| `backgroundColor` | `str` | Background color hex code (default: "#000000") |
+| `maxDuration` | `int` | Maximum recording duration in seconds |
+| `minIdleTimeOut` | `int` | Stop recording after idle timeout in seconds |
+
+### Stopping a Recording
+
+Stop an active recording:
+
+```python
+def on_recording_stopped(error):
+    if error:
+        print(f"Failed to stop recording: {error}")
+    else:
+        print("Recording stopped successfully")
+
+# Stop the default recording
+client.stop_recording(completion=on_recording_stopped)
+
+# Stop a specific recording by stream_id
+client.stop_recording(
+    stream_id="specific-stream-id",
+    completion=on_recording_stopped
+)
+```
+
+### Updating a Recording
+
+Update recording settings while recording is active:
+
+```python
+update_settings = {
+    "backgroundColor": "#FFFFFF"
+}
+
+def on_recording_updated(error):
+    if error:
+        print(f"Failed to update recording: {error}")
+    else:
+        print("Recording updated successfully")
+
+client.update_recording(
+    update_settings=update_settings,
+    stream_id="stream-id",  # optional
+    completion=on_recording_updated
+)
+```
+
+## RTMP Live Streaming
+
+Stream your meeting to RTMP endpoints like YouTube Live, Twitch, or custom RTMP servers.
+
+### Streaming to RTMP URLs
+
+Start streaming to one or more RTMP endpoints:
+
+```python
+from daily import CallClient
+
+client = CallClient()
+
+def on_stream_started(error):
+    if error:
+        print(f"Failed to start stream: {error}")
+    else:
+        print("Stream started successfully")
+
+# Stream to multiple RTMP URLs
+rtmp_urls = [
+    "rtmp://a.rtmp.youtube.com/live2/your-stream-key",
+    "rtmp://live.twitch.tv/app/your-stream-key"
+]
+
+client.start_live_stream_with_rtmp_urls(
+    rtmp_urls=rtmp_urls,
+    completion=on_stream_started
+)
+```
+
+### Streaming with Custom Settings
+
+Configure streaming quality and behavior:
+
+```python
+streaming_settings = {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "videoBitrate": 4000,
+    "audioBitrate": 128,
+    "backgroundColor": "#0000FF"
+}
+
+client.start_live_stream_with_rtmp_urls(
+    rtmp_urls=rtmp_urls,
+    streaming_settings=streaming_settings,
+    stream_id="my-custom-stream",
+    force_new=False,
+    completion=on_stream_started
+)
+```
+
+### Streaming to Custom Endpoints
+
+Stream to Daily's WebRTC endpoints for custom processing:
+
+```python
+endpoints = [
+    "https://your-endpoint.example.com/stream1",
+    "https://your-endpoint.example.com/stream2"
+]
+
+client.start_live_stream_with_endpoints(
+    endpoints=endpoints,
+    streaming_settings=streaming_settings,
+    completion=on_stream_started
+)
+```
+
+### Stopping a Stream
+
+Stop an active live stream:
+
+```python
+def on_stream_stopped(error):
+    if error:
+        print(f"Failed to stop stream: {error}")
+    else:
+        print("Stream stopped successfully")
+
+client.stop_live_stream(
+    stream_id="stream-id",  # optional
+    completion=on_stream_stopped
+)
+```
+
+### Managing Stream Endpoints
+
+Add or remove RTMP endpoints from an active stream:
+
+```python
+# Add new endpoints
+new_endpoints = [
+    "rtmp://new-server.example.com/live/stream-key"
+]
+
+client.add_live_streaming_endpoints(
+    endpoints=new_endpoints,
+    stream_id="stream-id",
+    completion=lambda error: print("Endpoints added" if not error else error)
+)
+
+# Remove endpoints
+old_endpoints = [
+    "rtmp://old-server.example.com/live/stream-key"
+]
+
+client.remove_live_streaming_endpoints(
+    endpoints=old_endpoints,
+    stream_id="stream-id",
+    completion=lambda error: print("Endpoints removed" if not error else error)
+)
+```
+
+## Event Handling
+
+Listen to recording and streaming events using an EventHandler:
+
+```python
+from daily import EventHandler, CallClient
+
+class MyEventHandler(EventHandler):
+    def on_recording_started(self, status):
+        print(f"Recording started: {status}")
+        # status contains: streamId, layout, etc.
+    
+    def on_recording_stopped(self, stream_id):
+        print(f"Recording stopped: {stream_id}")
+    
+    def on_recording_error(self, stream_id, message):
+        print(f"Recording error on {stream_id}: {message}")
+    
+    def on_live_stream_started(self, status):
+        print(f"Live stream started: {status}")
+    
+    def on_live_stream_stopped(self, stream_id):
+        print(f"Live stream stopped: {stream_id}")
+    
+    def on_live_stream_error(self, stream_id, message):
+        print(f"Stream error on {stream_id}: {message}")
+    
+    def on_live_stream_warning(self, stream_id, message):
+        print(f"Stream warning on {stream_id}: {message}")
+
+# Use the event handler
+event_handler = MyEventHandler()
+client = CallClient(event_handler=event_handler)
+```
+
+## Complete Examples
+
+### Auto-Recording on Join
+
+Automatically start recording when joining a meeting:
+
+```python
+import os
+import time
+import aiohttp
+from daily import Daily, CallClient
+from pydantic import BaseModel, Field
+from typing import Optional
+
+class DailyStreamingOptions(BaseModel):
+    width: Optional[int] = Field(default=1920)
+    height: Optional[int] = Field(default=1080)
+    fps: Optional[int] = Field(default=30)
+    videoBitrate: Optional[int] = Field(default=4000)
+    audioBitrate: Optional[int] = Field(default=128)
+    maxDuration: Optional[int] = Field(default=3600)
+
+class DailyMeetingTokenProperties(BaseModel):
+    exp: Optional[int] = Field(default=None)
+    is_owner: Optional[bool] = Field(default=True)
+    start_cloud_recording: Optional[bool] = Field(default=False)
+    start_cloud_recording_opts: Optional[DailyStreamingOptions] = Field(default=None)
+
+class DailyRESTHelper:
+    def __init__(self, daily_api_key: str, aiohttp_session: aiohttp.ClientSession):
+        self.daily_api_key = daily_api_key
+        self.daily_api_url = "https://api.daily.co/v1"
+        self.aiohttp_session = aiohttp_session
+    
+    async def get_token(
+        self,
+        room_url: str,
+        expiry_time: float = 3600,
+        owner: bool = True,
+        start_recording: bool = False
+    ) -> str:
+        expiration = int(time.time() + expiry_time)
+        headers = {"Authorization": f"Bearer {self.daily_api_key}"}
+        
+        properties = DailyMeetingTokenProperties(
+            exp=expiration,
+            is_owner=owner,
+            start_cloud_recording=start_recording
+        )
+        
+        if start_recording:
+            properties.start_cloud_recording_opts = DailyStreamingOptions()
+        
+        json_data = {"properties": properties.model_dump(exclude_none=True)}
+        
+        async with self.aiohttp_session.post(
+            f"{self.daily_api_url}/meeting-tokens",
+            headers=headers,
+            json=json_data
+        ) as response:
+            if response.status != 200:
+                text = await response.text()
+                raise Exception(f"Failed to create token: {text}")
+            
+            data = await response.json()
+            return data["token"]
+
+# Usage
+async def start_auto_recording(meeting_url: str):
+    async with aiohttp.ClientSession() as session:
+        helper = DailyRESTHelper(
+            daily_api_key=os.getenv("DAILY_API_KEY"),
+            aiohttp_session=session
+        )
+        
+        # Get token with auto-recording enabled
+        token = await helper.get_token(
+            room_url=meeting_url,
+            start_recording=True
+        )
+        
+        Daily.init()
+        client = CallClient()
+        
+        # Join with the token - recording starts automatically
+        client.join(meeting_url, meeting_token=token)
+```
+
+### Multi-Platform Live Streaming
+
+Stream to multiple platforms simultaneously:
+
+```python
+from daily import Daily, CallClient, EventHandler
+import os
+
+class StreamManager(EventHandler):
+    def __init__(self):
+        self.__client = CallClient(event_handler=self)
+        self.__active_streams = {}
+    
+    def on_live_stream_started(self, status):
+        stream_id = status.get("streamId")
+        self.__active_streams[stream_id] = status
+        print(f"Stream {stream_id} started successfully")
+    
+    def on_live_stream_error(self, stream_id, message):
+        print(f"Stream {stream_id} error: {message}")
+        # Attempt to restart stream
+        self.restart_stream(stream_id)
+    
+    def start_multi_platform_stream(self, meeting_url):
+        # Join the meeting first
+        self.__client.join(meeting_url)
+        
+        # Setup streaming to multiple platforms
+        rtmp_urls = [
+            f"rtmp://a.rtmp.youtube.com/live2/{os.getenv('YOUTUBE_STREAM_KEY')}",
+            f"rtmp://live.twitch.tv/app/{os.getenv('TWITCH_STREAM_KEY')}",
+            f"rtmp://live-api-s.facebook.com:80/rtmp/{os.getenv('FACEBOOK_STREAM_KEY')}"
+        ]
+        
+        streaming_settings = {
+            "width": 1920,
+            "height": 1080,
+            "fps": 30,
+            "videoBitrate": 6000,
+            "audioBitrate": 160
+        }
+        
+        self.__client.start_live_stream_with_rtmp_urls(
+            rtmp_urls=rtmp_urls,
+            streaming_settings=streaming_settings,
+            stream_id="multi-platform-stream"
+        )
+    
+    def restart_stream(self, stream_id):
+        # Implementation for restarting failed streams
+        pass
+
+# Usage
+Daily.init()
+manager = StreamManager()
+manager.start_multi_platform_stream("https://your-domain.daily.co/room-name")
+```
+
+### Recording with Custom Layout
+
+Record meetings with custom participant layouts:
+
+```python
+from daily import CallClient
+
+client = CallClient()
+
+# Define custom layout
+streaming_settings = {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "videoBitrate": 4000,
+    "audioBitrate": 128,
+    "layout": {
+        "preset": "default",  # or "single-participant", "active-participant"
+        "maxCamStreams": 9
+    }
+}
+
+client.start_recording(
+    streaming_settings=streaming_settings,
+    completion=lambda stream_id, error: (
+        print(f"Recording started: {stream_id}")
+        if not error
+        else print(f"Error: {error}")
+    )
+)
+```
+
+## Best Practices
+
+<Steps>
+  <Step title="Handle errors gracefully">
+    Always provide completion callbacks and handle errors. Network issues or insufficient permissions can cause failures.
+  </Step>
+  
+  <Step title="Monitor stream health">
+    Listen to warning and error events to detect and respond to streaming issues in real-time.
+  </Step>
+  
+  <Step title="Set appropriate bitrates">
+    Balance quality and bandwidth. Higher bitrates provide better quality but require more bandwidth and may cause issues on slower connections.
+  </Step>
+  
+  <Step title="Use stream IDs for management">
+    When running multiple streams, use unique stream_id values to manage them independently.
+  </Step>
+  
+  <Step title="Set maximum duration">
+    Always set maxDuration to prevent runaway recordings that could incur unexpected costs.
+  </Step>
+</Steps>
+
+<Warning>
+Recording and streaming consume significant resources and may incur additional costs. Always stop recordings/streams when done.
+</Warning>
+
+<Tip>
+For production applications, store stream keys and API keys securely using environment variables or a secrets manager.
+</Tip>
+
+## Common Issues
+
+### RTMP Connection Failures
+
+If RTMP streaming fails:
+- Verify the RTMP URL and stream key are correct
+- Check network connectivity to the RTMP server
+- Ensure the streaming platform is online and accepting connections
+- Monitor for warning events that may indicate connection issues
+
+### Recording Not Starting
+
+If recording fails to start:
+- Verify you have owner privileges in the meeting
+- Check that recording is enabled for your Daily domain
+- Ensure no conflicting recordings are already running
+- Check the error message in the completion callback
+
+### Quality Issues
+
+If recording/stream quality is poor:
+- Increase videoBitrate and audioBitrate settings
+- Ensure adequate network bandwidth is available
+- Reduce resolution or framerate if bandwidth is limited
+- Check participant video quality settings
+
+## Related Resources
+
+- [CallClient.start_recording()](/api-reference/call-client#start_recording)
+- [CallClient.start_live_stream_with_rtmp_urls()](/api-reference/call-client#start_live_stream_with_rtmp_urls)
+- [EventHandler](/api-reference/event-handler)
+- [Daily REST API Documentation](https://docs.daily.co/reference/rest-api)

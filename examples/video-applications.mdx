@@ -1,0 +1,456 @@
+---
+title: "Video Application Examples"
+description: "Build video streaming applications with custom rendering, object detection, and GUI integration"
+---
+
+These examples demonstrate how to send and receive video in Daily meetings, create custom video renderers, and build GUI applications with video playback.
+
+## Basic Video Examples
+
+### Sending Static Images
+
+Stream a static image into a meeting at a specified framerate.
+
+**File**: `demos/video/send_image.py`
+
+```python
+from daily import *
+from PIL import Image
+import time
+
+class SendImageApp:
+    def __init__(self, image_file, framerate):
+        self.__image = Image.open(image_file)
+        self.__framerate = framerate
+        
+        # Create virtual camera matching image dimensions
+        self.__camera = Daily.create_camera_device(
+            "my-camera",
+            width=self.__image.width,
+            height=self.__image.height,
+            color_format="RGB"
+        )
+        
+        self.__client = CallClient()
+    
+    def send_image(self):
+        sleep_time = 1.0 / self.__framerate
+        image_bytes = self.__image.tobytes()
+        
+        while not self.__app_quit:
+            self.__camera.write_frame(image_bytes)
+            time.sleep(sleep_time)
+```
+
+**Usage**:
+```bash
+python3 send_image.py -m MEETING_URL -i image.png -f 30
+```
+
+**Options**:
+- `-i, --image`: Path to image file
+- `-f, --framerate`: Framerate for streaming
+
+[View full source →](https://github.com/daily-co/daily-python/blob/main/demos/video/send_image.py)
+
+## GStreamer Media Player
+
+Stream video files into a meeting using GStreamer pipelines.
+
+**File**: `demos/gstreamer/media_player.py`
+
+```python
+import gi
+gi.require_version("Gst", "1.0")
+gi.require_version("GstApp", "1.0")
+from gi.repository import Gst, GstApp, GLib
+from daily import *
+
+VIDEO_WIDTH = 1280
+VIDEO_HEIGHT = 720
+AUDIO_SAMPLE_RATE = 48000
+AUDIO_CHANNELS = 2
+
+class GstApp:
+    def __init__(self, filename):
+        # Create virtual camera for video
+        self.__camera = Daily.create_camera_device(
+            "my-camera",
+            width=VIDEO_WIDTH,
+            height=VIDEO_HEIGHT,
+            color_format="I420"
+        )
+        
+        # Create virtual microphone for audio
+        self.__microphone = Daily.create_microphone_device(
+            "my-mic",
+            sample_rate=AUDIO_SAMPLE_RATE,
+            channels=AUDIO_CHANNELS,
+            non_blocking=True
+        )
+        
+        # Setup GStreamer pipeline
+        self.__player = Gst.Pipeline.new("player")
+        
+        source = Gst.ElementFactory.make("filesrc", None)
+        source.set_property("location", filename)
+        
+        decodebin = Gst.ElementFactory.make("decodebin", None)
+        decodebin.connect("pad-added", self.decodebin_callback)
+        
+        self.__player.add(source)
+        self.__player.add(decodebin)
+        source.link(decodebin)
+    
+    def appsink_video_new_sample(self, appsink):
+        buffer = appsink.pull_sample().get_buffer()
+        (_, info) = buffer.map(Gst.MapFlags.READ)
+        self.__camera.write_frame(info.data)
+        buffer.unmap(info)
+        return Gst.FlowReturn.OK
+    
+    def appsink_audio_new_sample(self, appsink):
+        buffer = appsink.pull_sample().get_buffer()
+        (_, info) = buffer.map(Gst.MapFlags.READ)
+        self.__microphone.write_frames(info.data)
+        buffer.unmap(info)
+        return Gst.FlowReturn.OK
+```
+
+**Features**:
+- Supports any media format supported by GStreamer
+- Automatic audio/video decoding and conversion
+- Synchronized audio and video streaming
+- Configurable resolution and encoding parameters
+
+**Usage**:
+```bash
+python3 media_player.py -m MEETING_URL -i video.mp4
+```
+
+**Prerequisites**:
+- GStreamer 1.0 and development libraries
+- Install: `apt-get install gstreamer1.0-tools gstreamer1.0-plugins-base gstreamer1.0-plugins-good`
+
+[View full source →](https://github.com/daily-co/daily-python/blob/main/demos/gstreamer/media_player.py)
+
+## Object Detection with YOLO
+
+Real-time object detection on participant video using YOLOv8.
+
+**File**: `demos/yolo/yolo.py`
+
+```python
+import queue
+import threading
+from PIL import Image
+from ultralytics import YOLO
+from daily import *
+
+class DailyYOLO(EventHandler):
+    def __init__(self):
+        self.__client = CallClient(event_handler=self)
+        
+        # Load YOLO model
+        self.__model = YOLO("yolov8n.pt")
+        self.__camera = None
+        
+        self.__queue = queue.Queue()
+        
+        # Process frames in background thread
+        self.__thread = threading.Thread(target=self.process_frames)
+        self.__thread.start()
+    
+    def on_participant_joined(self, participant):
+        print(f"Participant {participant['id']} joined, analyzing frames...")
+        self.__client.set_video_renderer(
+            participant["id"], 
+            self.on_video_frame
+        )
+    
+    def setup_camera(self, video_frame):
+        if not self.__camera:
+            # Create camera matching participant video size
+            self.__camera = Daily.create_camera_device(
+                "camera",
+                width=video_frame.width,
+                height=video_frame.height,
+                color_format="RGB"
+            )
+            self.__client.update_inputs({
+                "camera": {
+                    "isEnabled": True,
+                    "settings": {"deviceId": "camera"}
+                }
+            })
+    
+    def process_frames(self):
+        while not self.__app_quit:
+            video_frame = self.__queue.get()
+            
+            # Convert frame to PIL Image
+            image = Image.frombytes(
+                "RGBA",
+                (video_frame.width, video_frame.height),
+                video_frame.buffer
+            )
+            
+            # Run YOLO detection
+            results = self.__model.track(image)
+            
+            # Draw bounding boxes and send back
+            pil = Image.fromarray(results[0].plot(), mode="RGB").tobytes()
+            self.__camera.write_frame(pil)
+    
+    def on_video_frame(self, participant_id, video_frame, video_source):
+        # Process ~15 frames per second
+        if time.time() - self.__time > 0.05:
+            self.__time = time.time()
+            self.setup_camera(video_frame)
+            self.__queue.put(video_frame)
+```
+
+**Features**:
+- Real-time object detection and tracking
+- Automatic bounding box visualization
+- Efficient frame processing (~15 FPS)
+- Returns annotated video to meeting
+
+**Usage**:
+```bash
+python3 yolo.py -m MEETING_URL
+```
+
+**Prerequisites**:
+- `pip install ultralytics`
+- YOLO model will download automatically on first run
+
+[View full source →](https://github.com/daily-co/daily-python/blob/main/demos/yolo/yolo.py)
+
+## GUI Applications
+
+### Gtk Video Renderer
+
+Native Gtk application for receiving and rendering participant video.
+
+**File**: `demos/gtk/gtk_app.py`
+
+```python
+import gi
+gi.require_version("Gtk", "4.0")
+from gi.repository import GLib, Gtk
+import cairo
+from daily import *
+
+class DailyGtkApp(Gtk.Application):
+    def __init__(self, meeting_url, participant_id, save_audio, screen_share):
+        super().__init__(application_id="co.daily.DailyGtkApp")
+        
+        self.__client = CallClient()
+        
+        # Configure subscription profiles
+        self.__client.update_subscription_profiles({
+            "base": {
+                "microphone": "subscribed",
+                "camera": "unsubscribed" if screen_share else "subscribed",
+                "screenVideo": "subscribed" if screen_share else "unsubscribed",
+            }
+        })
+        
+        self.__video_source = "screenVideo" if screen_share else "camera"
+    
+    def join(self, meeting_url, participant_id):
+        if self.__save_audio:
+            self.__client.set_audio_renderer(
+                participant_id,
+                self.on_audio_data
+            )
+        
+        self.__client.set_video_renderer(
+            participant_id,
+            self.on_video_frame,
+            video_source=self.__video_source,
+            color_format="BGRA"
+        )
+        
+        self.__client.join(meeting_url, completion=self.on_joined)
+    
+    def on_video_frame(self, participant_id, video_frame, video_source):
+        self.__frame_width = video_frame.width
+        self.__frame_height = video_frame.height
+        self.__frame = video_frame
+        self.__drawing_area.queue_draw()
+    
+    def drawing_area_draw(self, area, context, w, h, data):
+        if self.__joined and self.__frame is not None:
+            image = bytearray(self.__frame.buffer)
+            width = self.__frame_width
+            height = self.__frame_height
+            
+            stride = cairo.ImageSurface.format_stride_for_width(
+                cairo.FORMAT_ARGB32, width
+            )
+            cairo_surface = cairo.ImageSurface.create_for_data(
+                image, cairo.FORMAT_ARGB32, width, height, stride
+            )
+            
+            # Scale to fit window
+            width_ratio = float(self.__width) / float(width)
+            height_ratio = float(self.__height) / float(height)
+            scale_xy = min(height_ratio, width_ratio)
+            
+            context.scale(scale_xy, scale_xy)
+            context.set_source_surface(cairo_surface)
+            context.paint()
+```
+
+**Features**:
+- Native Gtk 4.0 application
+- Render participant camera or screen share
+- Optional audio capture to WAV file
+- Automatic scaling to window size
+
+**Usage**:
+```bash
+# View participant camera
+python3 gtk_app.py -m MEETING_URL -p PARTICIPANT_ID
+
+# View screen share
+python3 gtk_app.py -m MEETING_URL -p PARTICIPANT_ID -s
+
+# Save audio to file
+python3 gtk_app.py -m MEETING_URL -p PARTICIPANT_ID -a
+```
+
+**Options**:
+- `-m, --meeting`: Meeting URL
+- `-p, --participant`: Participant ID to render
+- `-a, --audio`: Save participant audio to `participant-ID.wav`
+- `-s, --screen`: Render screen share instead of camera
+
+**Prerequisites**:
+- Gtk 4.0 development libraries
+- Install: `apt-get install libgtk-4-dev python3-gi`
+
+[View full source →](https://github.com/daily-co/daily-python/blob/main/demos/gtk/gtk_app.py)
+
+### Qt Video Renderer
+
+Native Qt application for video rendering.
+
+**File**: `demos/qt/qt_app.py`
+
+Similar to the Gtk example but using Qt framework.
+
+**Prerequisites**:
+- Qt for Python
+- Install: `pip install PySide6`
+
+[View full source →](https://github.com/daily-co/daily-python/blob/main/demos/qt/qt_app.py)
+
+## Key Concepts
+
+### Virtual Camera Devices
+
+Create virtual cameras for video I/O:
+
+```python
+camera = Daily.create_camera_device(
+    "device-name",
+    width=1280,
+    height=720,
+    color_format="RGB"  # or "RGBA", "I420", "BGRA"
+)
+```
+
+### Supported Color Formats
+
+- **RGB**: 24-bit RGB (3 bytes per pixel)
+- **RGBA**: 32-bit RGBA (4 bytes per pixel)
+- **BGRA**: 32-bit BGRA (4 bytes per pixel, native for Cairo/Gtk)
+- **I420**: YUV 4:2:0 planar format (efficient for encoding)
+
+### Video Configuration
+
+Configure camera settings when joining:
+
+```python
+client.join(
+    meeting_url,
+    client_settings={
+        "inputs": {
+            "camera": {
+                "isEnabled": True,
+                "settings": {"deviceId": "my-camera"}
+            }
+        },
+        "publishing": {
+            "camera": {
+                "isPublishing": True,
+                "sendSettings": {
+                    "encodings": {
+                        "low": {
+                            "maxBitrate": 1000000,
+                            "maxFramerate": 30.0,
+                            "scaleResolutionDownBy": 1.0,
+                        }
+                    }
+                }
+            }
+        }
+    }
+)
+```
+
+### Video Renderers
+
+Receive video frames from participants:
+
+```python
+def on_video_frame(participant_id, video_frame, video_source):
+    # video_frame.width, video_frame.height
+    # video_frame.buffer - raw frame data
+    # video_source - "camera" or "screenVideo"
+    pass
+
+client.set_video_renderer(
+    participant_id,
+    on_video_frame,
+    video_source="camera",  # or "screenVideo"
+    color_format="RGBA"
+)
+```
+
+### Writing Video Frames
+
+Send video frames to meeting:
+
+```python
+# From PIL Image
+image = Image.open("frame.png")
+camera.write_frame(image.tobytes())
+
+# From numpy array
+import numpy as np
+frame = np.zeros((720, 1280, 3), dtype=np.uint8)
+camera.write_frame(frame.tobytes())
+
+# From raw bytes
+frame_data = b"..."  # Must match width * height * bytes_per_pixel
+camera.write_frame(frame_data)
+```
+
+## Performance Tips
+
+1. **Frame Rate Control**: Don't send frames faster than your target framerate
+2. **Resolution**: Lower resolutions reduce bandwidth and CPU usage
+3. **Color Format**: Use I420 for efficient encoding, RGBA for processing
+4. **Threading**: Process frames in background threads to avoid blocking
+5. **Queue Management**: Use queues to decouple capture from processing
+
+## Next Steps
+
+- Explore [Audio Bot Examples](/examples/audio-bots) for audio integration
+- Check out [Integration Examples](/examples/integrations) for combining video with AI services
+- Read the [Virtual Devices guide](/concepts/virtual-devices) for detailed documentation
+- Browse all examples on [GitHub](https://github.com/daily-co/daily-python/tree/main/demos)

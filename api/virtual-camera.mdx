@@ -1,0 +1,129 @@
+---
+title: "VirtualCameraDevice"
+description: "Virtual camera device for streaming video frames to Daily calls"
+---
+
+## Overview
+
+The `VirtualCameraDevice` class represents a virtual camera that can be used to stream video frames into a Daily call. You can create a virtual camera device and write video frames to it programmatically.
+
+## Creation
+
+Create a virtual camera device using the `Daily.create_camera_device()` static method:
+
+```python
+from daily import Daily
+
+camera = Daily.create_camera_device(
+    device_name="my-virtual-camera",
+    width=1280,
+    height=720,
+    color_format="RGBA"
+)
+```
+
+### Parameters
+
+<ParamField path="device_name" type="str" required>
+  The name of the virtual camera device
+</ParamField>
+
+<ParamField path="width" type="int" required>
+  The width of the video frames in pixels
+</ParamField>
+
+<ParamField path="height" type="int" required>
+  The height of the video frames in pixels
+</ParamField>
+
+<ParamField path="color_format" type="str" default="RGBA">
+  The color format of the video frames. Default is "RGBA"
+</ParamField>
+
+## Properties
+
+<ResponseField name="name" type="str">
+  The name of the virtual camera device
+</ResponseField>
+
+<ResponseField name="width" type="int">
+  The width of the video frames in pixels
+</ResponseField>
+
+<ResponseField name="height" type="int">
+  The height of the video frames in pixels
+</ResponseField>
+
+<ResponseField name="color_format" type="str">
+  The color format of the video frames
+</ResponseField>
+
+## Methods
+
+### write_frame()
+
+Writes a single video frame to the virtual camera device.
+
+```python
+camera.write_frame(frame)
+```
+
+#### Parameters
+
+<ParamField path="frame" type="bytes" required>
+  The video frame data as bytes. The size should match `width * height * bytes_per_pixel` based on the color format
+</ParamField>
+
+#### Returns
+
+`None`
+
+## Example Usage
+
+```python
+from daily import Daily, CallClient
+import numpy as np
+
+# Initialize Daily
+Daily.init()
+
+# Create a virtual camera device
+camera = Daily.create_camera_device(
+    device_name="my-camera",
+    width=640,
+    height=480,
+    color_format="RGBA"
+)
+
+# Create a client and join a call
+client = CallClient()
+client.join("https://your-domain.daily.co/room")
+
+# Update inputs to use the virtual camera
+client.update_inputs({
+    "camera": {
+        "isEnabled": True,
+        "settings": {
+            "deviceId": camera.name
+        }
+    }
+})
+
+# Generate and write frames
+while True:
+    # Create a frame (example: solid color)
+    frame = np.zeros((camera.height, camera.width, 4), dtype=np.uint8)
+    frame[:, :] = [255, 0, 0, 255]  # Red color
+    
+    # Write the frame to the virtual camera
+    camera.write_frame(frame.tobytes())
+    
+    # Control frame rate (e.g., 30 fps)
+    time.sleep(1/30)
+```
+
+## Related
+
+- [VirtualMicrophoneDevice](/api/virtual-microphone)
+- [VirtualSpeakerDevice](/api/virtual-speaker)
+- [Daily.create_camera_device()](/api/daily#create_camera_device)

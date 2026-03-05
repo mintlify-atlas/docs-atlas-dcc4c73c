@@ -1,0 +1,358 @@
+---
+title: "Audio Bot Examples"
+description: "Build voice-enabled bots with real-time audio processing, STT, and TTS integrations"
+---
+
+These examples demonstrate how to build audio bots that can send and receive audio in Daily meetings, integrate with speech processing services, and work with real audio hardware.
+
+## Basic Audio Examples
+
+### Sending WAV Audio
+
+Send audio from a WAV file into a meeting using a virtual microphone device.
+
+**File**: `demos/audio/wav_audio_send.py`
+
+```python
+import wave
+from daily import *
+
+class SendWavApp:
+    def __init__(self, input_file_name, sample_rate, num_channels):
+        # Create virtual microphone
+        self.__mic_device = Daily.create_microphone_device(
+            "my-mic", sample_rate=sample_rate, channels=num_channels
+        )
+        
+        self.__client = CallClient()
+        
+    def send_wav_file(self, file_name):
+        wav = wave.open(file_name, "rb")
+        
+        sent_frames = 0
+        total_frames = wav.getnframes()
+        sample_rate = wav.getframerate()
+        
+        while not self.__app_quit and sent_frames < total_frames:
+            # Read 100ms worth of audio frames
+            frames = wav.readframes(int(sample_rate / 10))
+            if len(frames) > 0:
+                self.__mic_device.write_frames(frames)
+                sent_frames += sample_rate / 10
+```
+
+**Usage**:
+```bash
+python3 wav_audio_send.py -m MEETING_URL -i FILE.wav
+```
+
+**Options**:
+- `-c, --channels`: Number of audio channels (default: 1)
+- `-r, --rate`: Sample rate in Hz (default: 16000)
+
+[View full source →](https://github.com/daily-co/daily-python/blob/main/demos/audio/wav_audio_send.py)
+
+### Receiving WAV Audio
+
+Capture audio from a meeting participant and save it to a WAV file.
+
+**File**: `demos/audio/wav_audio_receive.py`
+
+**Usage**:
+```bash
+python3 wav_audio_receive.py -m MEETING_URL -o output.wav
+```
+
+[View full source →](https://github.com/daily-co/daily-python/blob/main/demos/audio/wav_audio_receive.py)
+
+### RAW Audio Processing
+
+Work directly with raw audio buffers for custom processing:
+
+- **Send RAW Audio** (`raw_audio_send.py`): Send raw PCM audio data
+- **Receive RAW Audio** (`raw_audio_receive.py`): Receive and process raw audio buffers
+- **Async WAV Send** (`async_wav_audio_send.py`): Asynchronous audio transmission
+- **Timed WAV Receive** (`timed_wav_audio_receive.py`): Time-based audio capture
+
+## Speech-to-Text (STT) Integration
+
+### Google Cloud Speech-to-Text
+
+Transcribe spoken audio to text using Google's Speech-to-Text API.
+
+**File**: `demos/google/google_speech_to_text.py`
+
+**Prerequisites**:
+- Google Cloud credentials configured
+- See [Google Cloud Speech-to-Text docs](https://cloud.google.com/speech-to-text/docs/before-you-begin)
+
+**Usage**:
+```bash
+python3 google_speech_to_text.py -m MEETING_URL
+```
+
+[View full source →](https://github.com/daily-co/daily-python/blob/main/demos/google/google_speech_to_text.py)
+
+## Text-to-Speech (TTS) Integration
+
+### Google Cloud Text-to-Speech
+
+Convert text to speech and stream it into a meeting.
+
+**File**: `demos/google/google_text_to_speech.py`
+
+```python
+from daily import *
+from google.cloud import texttospeech
+import io
+
+# Create virtual microphone
+microphone = Daily.create_microphone_device("my-mic", sample_rate=16000, channels=1)
+
+client = CallClient()
+
+# Join meeting with virtual microphone
+client.join(
+    meeting_url,
+    client_settings={
+        "inputs": {"microphone": {"isEnabled": True, "settings": {"deviceId": "my-mic"}}}
+    },
+)
+
+# Configure Google TTS
+voice = texttospeech.VoiceSelectionParams(
+    language_code="en-US", 
+    name="en-US-Studio-M"
+)
+
+audio_config = texttospeech.AudioConfig(
+    audio_encoding=texttospeech.AudioEncoding.LINEAR16,
+    speaking_rate=1.0,
+    sample_rate_hertz=16000
+)
+
+speech_client = texttospeech.TextToSpeechClient()
+
+# Synthesize and send audio
+for sentence in sentences:
+    synthesis_input = texttospeech.SynthesisInput(text=sentence)
+    
+    response = speech_client.synthesize_speech(
+        input=synthesis_input, 
+        voice=voice, 
+        audio_config=audio_config
+    )
+    
+    # Create buffer and skip WAV header
+    stream = io.BytesIO(response.audio_content)
+    stream.read(44)  # Skip RIFF header
+    
+    # Send audio to meeting
+    microphone.write_frames(stream.read())
+```
+
+**Usage**:
+```bash
+python3 google_text_to_speech.py -m MEETING_URL -i sentences.txt
+```
+
+The input file should contain sentences, one per line.
+
+[View full source →](https://github.com/daily-co/daily-python/blob/main/demos/google/google_text_to_speech.py)
+
+### Deepgram Text-to-Speech
+
+Use Deepgram's TTS API for high-quality voice synthesis.
+
+**File**: `demos/deepgram/deepgram_text_to_speech.py`
+
+```python
+from daily import *
+from deepgram import DeepgramClient
+
+microphone = Daily.create_microphone_device("my-mic", sample_rate=16000, channels=1)
+
+# Requires DEEPGRAM_API_KEY environment variable
+deepgram = DeepgramClient()
+
+for sentence in sentences:
+    response = deepgram.speak.v1.audio.generate(
+        model="aura-2-asteria-en",
+        encoding="linear16",
+        container="none",
+        sample_rate=16000,
+        text=sentence.strip(),
+    )
+    
+    # Send audio frames to microphone
+    for data in response:
+        microphone.write_frames(data)
+```
+
+**Prerequisites**:
+- Set `DEEPGRAM_API_KEY` environment variable
+- See [Deepgram TTS docs](https://developers.deepgram.com/docs/text-to-speech)
+
+**Usage**:
+```bash
+export DEEPGRAM_API_KEY=your_api_key
+python3 deepgram_text_to_speech.py -m MEETING_URL -i sentences.txt
+```
+
+[View full source →](https://github.com/daily-co/daily-python/blob/main/demos/deepgram/deepgram_text_to_speech.py)
+
+## Hardware Audio Integration
+
+### PyAudio: Real Microphone and Speaker
+
+Capture audio from your system microphone and play meeting audio through your speakers.
+
+**File**: `demos/pyaudio/record_and_play.py`
+
+```python
+import pyaudio
+from daily import *
+
+class PyAudioApp:
+    def __init__(self, sample_rate, num_channels):
+        # Non-blocking virtual microphone for writing
+        self.__virtual_mic = Daily.create_microphone_device(
+            "my-mic", 
+            sample_rate=sample_rate, 
+            channels=num_channels, 
+            non_blocking=True
+        )
+        
+        # Blocking virtual speaker for reading
+        self.__virtual_speaker = Daily.create_speaker_device(
+            "my-speaker",
+            sample_rate=sample_rate,
+            channels=num_channels,
+        )
+        Daily.select_speaker_device("my-speaker")
+        
+        # Setup PyAudio streams
+        self.__pyaudio = pyaudio.PyAudio()
+        self.__input_stream = self.__pyaudio.open(
+            format=pyaudio.paInt16,
+            channels=num_channels,
+            rate=sample_rate,
+            input=True,
+            stream_callback=self.on_input_stream,
+        )
+        self.__output_stream = self.__pyaudio.open(
+            format=pyaudio.paInt16,
+            channels=num_channels,
+            rate=sample_rate,
+            output=True
+        )
+    
+    def on_input_stream(self, in_data, frame_count, time_info, status):
+        # Write microphone data to Daily
+        self.__virtual_mic.write_frames(in_data)
+        return None, pyaudio.paContinue
+    
+    def send_audio_stream(self):
+        num_frames = int(self.__sample_rate / 100)
+        while not self.__app_quit:
+            # Read from Daily and write to speakers
+            audio = self.__virtual_speaker.read_frames(num_frames)
+            if audio:
+                self.__output_stream.write(audio)
+```
+
+**Features**:
+- Captures real microphone input
+- Plays meeting audio through speakers
+- Supports audio processing features (AGC, noise suppression, echo cancellation)
+- Configurable channels (mono/stereo)
+
+**Usage**:
+```bash
+python3 record_and_play.py -m MEETING_URL
+```
+
+**Options**:
+- `-c, --channels`: Number of channels (1 or 2)
+- `-r, --rate`: Sample rate in Hz
+
+[View full source →](https://github.com/daily-co/daily-python/blob/main/demos/pyaudio/record_and_play.py)
+
+## Voice Activity Detection (VAD)
+
+Detect when someone is speaking in a meeting.
+
+**File**: `demos/vad/native_vad.py`
+
+[View full source →](https://github.com/daily-co/daily-python/blob/main/demos/vad/native_vad.py)
+
+## Key Concepts
+
+### Virtual Audio Devices
+
+Create virtual microphones and speakers for audio I/O:
+
+```python
+# Virtual microphone (for sending audio)
+mic = Daily.create_microphone_device(
+    "device-name",
+    sample_rate=16000,
+    channels=1,
+    non_blocking=False  # True for async writes
+)
+
+# Virtual speaker (for receiving audio)
+speaker = Daily.create_speaker_device(
+    "device-name",
+    sample_rate=16000,
+    channels=1
+)
+Daily.select_speaker_device("device-name")
+```
+
+### Audio Configuration
+
+Configure microphone settings when joining:
+
+```python
+client.join(
+    meeting_url,
+    client_settings={
+        "inputs": {
+            "microphone": {
+                "isEnabled": True,
+                "settings": {
+                    "deviceId": "my-mic",
+                    "customConstraints": {
+                        "autoGainControl": {"exact": True},
+                        "noiseSuppression": {"exact": True},
+                        "echoCancellation": {"exact": True},
+                    }
+                }
+            }
+        },
+        "publishing": {
+            "microphone": {
+                "isPublishing": True,
+                "sendSettings": {
+                    "channelConfig": "stereo"  # or "mono"
+                }
+            }
+        }
+    }
+)
+```
+
+### Sample Rate and Format
+
+Most demos use these audio settings:
+- **Sample Rate**: 16000 Hz (optimal for speech)
+- **Channels**: 1 (mono) or 2 (stereo)
+- **Format**: 16-bit PCM (LINEAR16)
+
+## Next Steps
+
+- Explore [Video Applications](/examples/video-applications) for video streaming examples
+- Check out [Integration Examples](/examples/integrations) for combining audio with other services
+- Read the [Virtual Devices guide](/concepts/virtual-devices) for in-depth documentation
+- Browse all examples on [GitHub](https://github.com/daily-co/daily-python/tree/main/demos)

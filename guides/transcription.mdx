@@ -1,0 +1,477 @@
+---
+title: "Transcription"
+description: "Learn how to transcribe meeting audio in real-time with the Daily Python SDK"
+---
+
+## Overview
+
+The Daily Python SDK provides real-time transcription capabilities, allowing you to convert spoken words to text during meetings. This guide covers starting transcription, handling transcription events, and configuring language settings.
+
+## Starting Transcription
+
+Use `start_transcription()` to begin transcribing meeting audio:
+
+```python
+from daily import CallClient
+
+client = CallClient()
+
+def on_transcription_started(error):
+    if error:
+        print(f"Failed to start transcription: {error}")
+    else:
+        print("Transcription started successfully")
+
+# Start transcription with default settings
+client.start_transcription(completion=on_transcription_started)
+```
+
+### Transcription Settings
+
+Customize transcription behavior with settings:
+
+```python
+transcription_settings = {
+    "language": "en",           # Language code
+    "model": "default",         # Transcription model
+    "tier": "base",             # Service tier
+    "profanityFilter": False,   # Filter profanity
+    "redact": False,            # Redact PII
+    "endpointing": True,        # Enable endpointing
+    "punctuate": True,          # Add punctuation
+    "includeRawResponse": False # Include raw provider response
+}
+
+client.start_transcription(
+    settings=transcription_settings,
+    completion=on_transcription_started
+)
+```
+
+### Transcription Settings Reference
+
+| Setting | Type | Description |
+|---------|------|-------------|
+| `language` | `str` | Language code (e.g., "en", "es", "fr") |
+| `model` | `str` | Transcription model to use |
+| `tier` | `str` | Service tier ("base" or "premium") |
+| `profanityFilter` | `bool` | Filter profanity from transcripts |
+| `redact` | `bool` | Redact personally identifiable information |
+| `endpointing` | `bool` | Enable speech endpointing detection |
+| `punctuate` | `bool` | Add punctuation to transcripts |
+| `includeRawResponse` | `bool` | Include raw provider response data |
+
+## Stopping Transcription
+
+Stop an active transcription session:
+
+```python
+def on_transcription_stopped(error):
+    if error:
+        print(f"Failed to stop transcription: {error}")
+    else:
+        print("Transcription stopped successfully")
+
+client.stop_transcription(completion=on_transcription_stopped)
+```
+
+## Updating Transcription
+
+Update transcription settings for specific participants:
+
+```python
+# Transcribe only specific participants
+participant_ids = ["participant-1", "participant-2"]
+
+client.update_transcription(
+    participants=participant_ids,
+    instance_id="transcription-instance-id",  # optional
+    completion=lambda error: print("Updated" if not error else error)
+)
+```
+
+## Handling Transcription Events
+
+Use an EventHandler to receive transcription messages and status updates:
+
+```python
+from daily import EventHandler, CallClient
+
+class TranscriptionHandler(EventHandler):
+    def on_transcription_started(self, status):
+        print(f"Transcription started: {status}")
+        # status contains: language, model, tier, etc.
+    
+    def on_transcription_message(self, message):
+        # Process transcription message
+        participant_id = message.get("participantId")
+        text = message.get("text")
+        is_final = message.get("is_final", False)
+        timestamp = message.get("timestamp")
+        
+        if is_final:
+            print(f"[{participant_id}] {text}")
+        else:
+            print(f"[{participant_id}] (interim) {text}")
+    
+    def on_transcription_stopped(self, stopped_by, stopped_by_error):
+        if stopped_by_error:
+            print(f"Transcription stopped due to error by {stopped_by}")
+        else:
+            print(f"Transcription stopped by {stopped_by}")
+    
+    def on_transcription_error(self, message):
+        print(f"Transcription error: {message}")
+
+# Use the event handler
+event_handler = TranscriptionHandler()
+client = CallClient(event_handler=event_handler)
+```
+
+## Transcription Message Format
+
+Transcription messages contain the following fields:
+
+```python
+{
+    "participantId": "abc123",        # ID of speaking participant
+    "text": "Hello world",            # Transcribed text
+    "timestamp": 1234567890.123,     # Timestamp in seconds
+    "is_final": True,                 # True if final, False if interim
+    "rawResponse": {...}              # Raw provider data (if enabled)
+}
+```
+
+### Interim vs Final Transcripts
+
+- **Interim transcripts**: Partial results that may change as more audio is processed
+- **Final transcripts**: Completed transcription segments that won't change
+
+```python
+def on_transcription_message(self, message):
+    text = message.get("text")
+    is_final = message.get("is_final")
+    
+    if is_final:
+        # Save or display final transcript
+        self.save_transcript(text)
+    else:
+        # Update UI with interim results
+        self.update_live_display(text)
+```
+
+## Language Support
+
+The SDK supports multiple languages for transcription. Common language codes:
+
+| Language | Code |
+|----------|------|
+| English | `en` |
+| Spanish | `es` |
+| French | `fr` |
+| German | `de` |
+| Italian | `it` |
+| Portuguese | `pt` |
+| Dutch | `nl` |
+| Japanese | `ja` |
+| Korean | `ko` |
+| Chinese (Simplified) | `zh` |
+| Russian | `ru` |
+| Arabic | `ar` |
+| Hindi | `hi` |
+
+### Setting Language
+
+```python
+# Start transcription in Spanish
+client.start_transcription(
+    settings={"language": "es"},
+    completion=on_transcription_started
+)
+```
+
+<Note>
+Language availability may depend on your Daily plan and the transcription provider being used.
+</Note>
+
+## Complete Examples
+
+### Basic Transcription Logger
+
+Capture and log all transcriptions:
+
+```python
+from daily import Daily, CallClient, EventHandler
+import json
+from datetime import datetime
+
+class TranscriptionLogger(EventHandler):
+    def __init__(self, output_file="transcription.json"):
+        self.__output_file = output_file
+        self.__transcripts = []
+        self.__client = CallClient(event_handler=self)
+    
+    def on_transcription_message(self, message):
+        # Add timestamp
+        message["received_at"] = datetime.now().isoformat()
+        
+        # Store transcript
+        self.__transcripts.append(message)
+        
+        # Print final transcripts
+        if message.get("is_final"):
+            participant_id = message.get("participantId")
+            text = message.get("text")
+            print(f"[{participant_id}]: {text}")
+    
+    def on_transcription_error(self, message):
+        print(f"Transcription error: {message}")
+    
+    def start(self, meeting_url):
+        # Join meeting
+        self.__client.join(meeting_url)
+        
+        # Start transcription
+        self.__client.start_transcription(
+            settings={
+                "language": "en",
+                "punctuate": True,
+                "profanityFilter": False
+            }
+        )
+    
+    def save_transcripts(self):
+        with open(self.__output_file, 'w') as f:
+            json.dump(self.__transcripts, f, indent=2)
+        print(f"Saved {len(self.__transcripts)} transcripts to {self.__output_file}")
+
+# Usage
+Daily.init()
+logger = TranscriptionLogger(output_file="meeting_transcript.json")
+logger.start("https://your-domain.daily.co/room-name")
+
+# Later, when leaving:
+logger.save_transcripts()
+```
+
+### Real-Time Transcript Display
+
+Display live transcripts with participant names:
+
+```python
+from daily import Daily, CallClient, EventHandler
+from collections import defaultdict
+
+class LiveTranscriptDisplay(EventHandler):
+    def __init__(self):
+        self.__client = CallClient(event_handler=self)
+        self.__participants = {}
+        self.__current_interim = defaultdict(str)
+    
+    def on_participant_joined(self, participant):
+        participant_id = participant["id"]
+        user_name = participant.get("info", {}).get("userName", "Unknown")
+        self.__participants[participant_id] = user_name
+    
+    def on_transcription_message(self, message):
+        participant_id = message.get("participantId")
+        text = message.get("text", "")
+        is_final = message.get("is_final", False)
+        
+        # Get participant name
+        name = self.__participants.get(participant_id, "Unknown")
+        
+        if is_final:
+            # Clear interim text for this participant
+            self.__current_interim[participant_id] = ""
+            # Display final transcript
+            print(f"\n{name}: {text}")
+        else:
+            # Update interim text
+            self.__current_interim[participant_id] = text
+            print(f"\r{name}: {text}", end="", flush=True)
+    
+    def start(self, meeting_url):
+        self.__client.join(meeting_url)
+        self.__client.start_transcription(
+            settings={
+                "language": "en",
+                "punctuate": True,
+                "endpointing": True
+            }
+        )
+
+# Usage
+Daily.init()
+display = LiveTranscriptDisplay()
+display.start("https://your-domain.daily.co/room-name")
+```
+
+### Multi-Language Transcription
+
+Automatically detect and transcribe multiple languages:
+
+```python
+from daily import Daily, CallClient, EventHandler
+
+class MultiLanguageTranscription(EventHandler):
+    def __init__(self):
+        self.__client = CallClient(event_handler=self)
+        self.__participant_languages = {}
+    
+    def on_participant_joined(self, participant):
+        participant_id = participant["id"]
+        # Get language from participant metadata if available
+        language = participant.get("info", {}).get("language", "en")
+        self.__participant_languages[participant_id] = language
+    
+    def on_transcription_message(self, message):
+        participant_id = message.get("participantId")
+        text = message.get("text")
+        is_final = message.get("is_final")
+        language = self.__participant_languages.get(participant_id, "en")
+        
+        if is_final:
+            print(f"[{language}] {participant_id}: {text}")
+    
+    def start(self, meeting_url, default_language="en"):
+        self.__client.join(meeting_url)
+        
+        # Start with default language
+        self.__client.start_transcription(
+            settings={
+                "language": default_language,
+                "punctuate": True
+            }
+        )
+    
+    def switch_language(self, language_code):
+        # Stop current transcription
+        self.__client.stop_transcription()
+        
+        # Start with new language
+        self.__client.start_transcription(
+            settings={
+                "language": language_code,
+                "punctuate": True
+            }
+        )
+
+# Usage
+Daily.init()
+transcriber = MultiLanguageTranscription()
+transcriber.start("https://your-domain.daily.co/room-name", default_language="en")
+
+# Switch to Spanish
+transcriber.switch_language("es")
+```
+
+### Transcription with PII Redaction
+
+Redact personally identifiable information from transcripts:
+
+```python
+from daily import Daily, CallClient, EventHandler
+
+class SecureTranscription(EventHandler):
+    def __init__(self):
+        self.__client = CallClient(event_handler=self)
+        self.__transcripts = []
+    
+    def on_transcription_message(self, message):
+        if message.get("is_final"):
+            # PII is automatically redacted when redact=True
+            text = message.get("text")
+            participant_id = message.get("participantId")
+            
+            # Store redacted transcript
+            self.__transcripts.append({
+                "participant": participant_id,
+                "text": text,
+                "timestamp": message.get("timestamp")
+            })
+            
+            print(f"[REDACTED] {participant_id}: {text}")
+    
+    def start(self, meeting_url):
+        self.__client.join(meeting_url)
+        
+        # Start transcription with PII redaction
+        self.__client.start_transcription(
+            settings={
+                "language": "en",
+                "redact": True,              # Enable PII redaction
+                "profanityFilter": True,     # Also filter profanity
+                "punctuate": True
+            }
+        )
+
+# Usage
+Daily.init()
+secure = SecureTranscription()
+secure.start("https://your-domain.daily.co/room-name")
+```
+
+## Best Practices
+
+<Steps>
+  <Step title="Handle interim and final transcripts">
+    Process interim transcripts for live display and final transcripts for storage to ensure accuracy.
+  </Step>
+  
+  <Step title="Store transcripts with metadata">
+    Include timestamps, participant IDs, and language information when storing transcripts.
+  </Step>
+  
+  <Step title="Monitor transcription errors">
+    Implement error handling to detect and respond to transcription failures.
+  </Step>
+  
+  <Step title="Choose appropriate settings">
+    Enable punctuation and endpointing for better readability. Use PII redaction for sensitive meetings.
+  </Step>
+  
+  <Step title="Manage language settings">
+    Set the correct language code to ensure accurate transcription results.
+  </Step>
+</Steps>
+
+<Warning>
+Transcription services may incur additional costs depending on your Daily plan. Monitor usage carefully.
+</Warning>
+
+<Tip>
+For better accuracy, ensure participants speak clearly and minimize background noise. Use high-quality microphones when possible.
+</Tip>
+
+## Common Issues
+
+### Transcription Not Starting
+
+If transcription fails to start:
+- Verify transcription is enabled for your Daily domain
+- Check that you have owner privileges in the meeting
+- Ensure the language code is valid and supported
+- Review the error message in the completion callback
+
+### Poor Transcription Quality
+
+If transcripts are inaccurate:
+- Verify the correct language is set
+- Ensure good audio quality (minimize background noise)
+- Enable punctuation for better readability
+- Consider using a premium tier if available
+
+### Missing Transcripts
+
+If you're not receiving transcripts:
+- Verify `on_transcription_message` is implemented in your EventHandler
+- Check that participants are speaking (transcription only fires when speech is detected)
+- Ensure transcription wasn't stopped or errored
+
+## Related Resources
+
+- [CallClient.start_transcription()](/api-reference/call-client#start_transcription)
+- [CallClient.stop_transcription()](/api-reference/call-client#stop_transcription)
+- [EventHandler.on_transcription_message()](/api-reference/event-handler#on_transcription_message)
+- [Daily Transcription Documentation](https://docs.daily.co/reference/daily-js/transcription)

@@ -1,97 +1,238 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: "Daily Python SDK"
+mode: "custom"
 ---
 
-## Setting up
+<div className="relative bg-gradient-to-br from-[#0f1117] via-[#1a1d27] to-[#0f1117] dark:from-[#0f1117] dark:via-[#1a1d27] dark:to-[#0f1117] py-20">
+  <div className="max-w-6xl mx-auto px-6 lg:px-8">
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+      <div className="lg:col-span-7">
+        <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white dark:text-white mb-6">
+          Build powerful video and audio applications with Python
+        </h1>
+        <p className="text-lg sm:text-xl text-gray-300 dark:text-gray-300 max-w-2xl mb-8">
+          Daily's Python SDK gives you everything you need to build real-time video, audio, and AI-powered voice agents with WebRTC infrastructure.
+        </p>
+        <div className="flex flex-wrap gap-4">
+          <a 
+            href="/quickstart" 
+            className="inline-flex items-center px-6 py-3 rounded-lg bg-[#94cb04] text-[#1a1a1a] font-semibold hover:bg-[#82b303] transition-colors no-underline"
+          >
+            Get Started
+          </a>
+          <a 
+            href="/api/call-client" 
+            className="inline-flex items-center px-6 py-3 rounded-lg border border-white/30 bg-white/10 text-white font-semibold hover:bg-white/20 transition-colors no-underline"
+          >
+            API Reference
+          </a>
+        </div>
+      </div>
+      <div className="lg:col-span-5 hidden lg:block">
+        <div className="relative">
+          <div className="absolute inset-0 bg-[#94cb04]/20 blur-3xl rounded-full"></div>
+          <div className="relative bg-[#1a1d27] dark:bg-[#1a1d27] border border-[#27272a] dark:border-[#27272a] rounded-2xl p-6">
+            <pre className="text-sm text-gray-300 dark:text-gray-300 overflow-x-auto">
+{`from daily import Daily, CallClient
 
-Get your documentation site up and running in minutes.
+# Initialize the SDK
+Daily.init()
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
+# Create and join a call
+client = CallClient()
+client.join(meeting_url)
 
-## Make it yours
+# Send audio to the meeting
+mic = Daily.create_microphone_device(
+  "mic", sample_rate=16000
+)
+client.update_inputs({
+  "microphone": {"isEnabled": True}
+})`}
+            </pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
-Design a docs site that looks great and empowers your users.
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <div className="text-center mb-12">
+    <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-4">
+      Quick Start
+    </h2>
+    <p className="text-base text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
+      Get up and running with Daily Python SDK in minutes
+    </p>
+  </div>
 
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
-  </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
-  </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
-  </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
-  </Card>
-</Columns>
+  <Steps>
+    <Step title="Install the package">
+      Install daily-python using pip:
+      
+      ```bash
+      pip install daily-python
+      ```
+      
+      <Note>Requires Python 3.7 or newer and glibc 2.28 or newer</Note>
+    </Step>
 
-## Create beautiful pages
+    <Step title="Initialize the SDK">
+      Initialize Daily in your application:
+      
+      ```python
+      from daily import Daily, CallClient, EventHandler
+      
+      # Initialize with optional logging
+      Daily.init(log_level=LogLevel.Info)
+      ```
+      
+      The `Daily.init()` method sets up the SDK and must be called before using any other features.
+    </Step>
 
-Everything you need to create world-class documentation.
+    <Step title="Create a CallClient">
+      Create a CallClient instance to manage your connection:
+      
+      ```python
+      # Define an event handler
+      class MyEventHandler(EventHandler):
+          def on_participant_joined(self, participant):
+              print(f"Participant joined: {participant['info']['userName']}")
+      
+      # Create the client
+      client = CallClient(event_handler=MyEventHandler())
+      ```
+    </Step>
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
+    <Step title="Join a meeting">
+      Connect to a Daily meeting room:
+      
+      ```python
+      # Join with a meeting URL
+      client.join(
+          meeting_url="https://your-domain.daily.co/room-name",
+          meeting_token="your-meeting-token"  # Optional
+      )
+      ```
+      
+      <Tip>Get your meeting URLs from the [Daily Dashboard](https://dashboard.daily.co) or use the Daily REST API</Tip>
+    </Step>
+  </Steps>
+</div>
 
-## Need inspiration?
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <div className="text-center mb-12">
+    <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-4">
+      Core Features
+    </h2>
+    <p className="text-base text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
+      Everything you need to build production-ready video and audio applications
+    </p>
+  </div>
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+  <CardGroup cols={2}>
+    <Card title="Virtual Devices" icon="microphone" href="/concepts/virtual-devices">
+      Create virtual cameras, microphones, and speakers to send and receive media streams programmatically.
+    </Card>
+    <Card title="Event Handling" icon="bolt" href="/concepts/event-handling">
+      React to meeting events like participant joins, media state changes, and transcription updates.
+    </Card>
+    <Card title="Audio Processing" icon="waveform" href="/guides/audio-processing">
+      Process real-time audio with custom renderers, VAD, and integration with AI speech services.
+    </Card>
+    <Card title="Video Processing" icon="video" href="/guides/video-processing">
+      Handle video frames for computer vision, streaming, and real-time video manipulation.
+    </Card>
+    <Card title="Recording & Streaming" icon="circle-dot" href="/guides/recording-streaming">
+      Start cloud recordings and live stream to RTMP endpoints like YouTube and Twitch.
+    </Card>
+    <Card title="Transcription" icon="closed-captioning" href="/guides/transcription">
+      Enable real-time transcription with automatic speech recognition in multiple languages.
+    </Card>
+  </CardGroup>
+</div>
+
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <div className="text-center mb-12">
+    <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-4">
+      Built for AI Voice Agents
+    </h2>
+    <p className="text-base text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
+      Perfect for building conversational AI applications
+    </p>
+  </div>
+
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <a href="/examples/audio-bots" className="group block rounded-2xl border border-gray-200 dark:border-[#27272a] hover:border-[#94cb04] dark:hover:border-[#94cb04] overflow-hidden transition-colors no-underline bg-white dark:bg-[#1a1d27]">
+      <div className="p-6">
+        <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-2">
+          Audio Bots
+        </h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          Build voice bots that listen, speak, and interact in real-time meetings using STT and TTS services.
+        </p>
+        <div className="flex items-center text-sm font-medium text-[#94cb04] group-hover:text-[#82b303]">
+          View examples
+          <svg className="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
+      </div>
+    </a>
+
+    <a href="/examples/integrations" className="group block rounded-2xl border border-gray-200 dark:border-[#27272a] hover:border-[#94cb04] dark:hover:border-[#94cb04] overflow-hidden transition-colors no-underline bg-white dark:bg-[#1a1d27]">
+      <div className="p-6">
+        <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-2">
+          AI Integrations
+        </h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          Connect with OpenAI, Deepgram, Google Cloud, and other AI services for powerful voice experiences.
+        </p>
+        <div className="flex items-center text-sm font-medium text-[#94cb04] group-hover:text-[#82b303]">
+          Explore integrations
+          <svg className="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
+      </div>
+    </a>
+  </div>
+</div>
+
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <div className="text-center mb-12">
+    <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-4">
+      Resources
+    </h2>
+  </div>
+
+  <CardGroup cols={3}>
+    <Card title="GitHub Repository" icon="github" href="https://github.com/daily-co/daily-python">
+      View source code, report issues, and contribute to the project.
+    </Card>
+    <Card title="Pipecat Framework" icon="code" href="https://github.com/pipecat-ai/pipecat">
+      Build conversational AI agents with Daily's official voice AI framework.
+    </Card>
+    <Card title="Join Discord" icon="discord" href="https://discord.gg/dailyco">
+      Get help from the Daily community and connect with other developers.
+    </Card>
+  </CardGroup>
+</div>
+
+<div className="mt-20 mb-16 max-w-5xl mx-auto px-6">
+  <div className="rounded-2xl bg-gradient-to-br from-[#94cb04] to-[#82b303] dark:from-[#94cb04] dark:to-[#82b303] p-8 md:p-12 text-center">
+    <h2 className="text-2xl sm:text-3xl font-bold text-[#1a1a1a] dark:text-[#1a1a1a] mb-4">
+      Ready to build?
+    </h2>
+    <p className="text-base text-[#1a1a1a]/80 dark:text-[#1a1a1a]/80 max-w-2xl mx-auto mb-8">
+      Start building real-time video and audio applications with Python today.
+    </p>
+    <a 
+      href="/quickstart" 
+      className="inline-flex items-center px-6 py-3 rounded-lg bg-[#1a1a1a] text-white font-semibold hover:bg-[#2a2a2a] transition-colors no-underline"
+    >
+      Get Started Now
+    </a>
+  </div>
+</div>

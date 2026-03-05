@@ -1,0 +1,110 @@
+---
+title: Introduction
+description: Build native video and audio calling applications with the Daily Python SDK
+---
+
+## What is Daily Python SDK?
+
+The Daily Python SDK is a powerful client library that enables you to build video and audio calling capabilities into native desktop and server applications using Python. It provides a comprehensive set of tools for creating real-time communication applications, from simple audio bots to sophisticated AI-powered agents.
+
+<Note>
+  **Looking to build voice and video AI agents?**
+  
+  Check out [Pipecat](https://github.com/pipecat-ai/pipecat), our voice and multimodal conversational AI framework. Pipecat has excellent support for Daily and already uses this Python SDK under the hood.
+</Note>
+
+## Key Features
+
+The Daily Python SDK provides everything you need to build real-time communication applications:
+
+- **Meeting Participation** - Join Daily meetings as a participant with full control over your connection
+- **Audio & Video Streaming** - Send and receive high-quality audio and video streams
+- **Input Configuration** - Configure camera, microphone, and custom media inputs
+- **Publishing Controls** - Manage what media you publish to other participants
+- **Subscription Management** - Control which participants' media you receive
+- **Participant Control** - Update remote participant permissions and manage meeting access
+- **Recording & Streaming** - Start and stop cloud recordings and RTMP live streams
+- **Transcription** - Enable real-time transcription of meeting audio
+- **Virtual Devices** - Create virtual cameras, microphones, and speakers for custom media processing
+- **Voice Activity Detection** - Built-in VAD for detecting speech in audio streams
+
+## Common Use Cases
+
+The Daily Python SDK is ideal for building:
+
+### Audio Bots
+Create bots that join meetings to provide automated services like:
+- Announcements and notifications
+- Interactive voice response (IVR) systems
+- Meeting assistants and moderators
+- Audio recording and transcription services
+
+### AI-Powered Agents
+Build intelligent conversational agents with:
+- Real-time speech-to-text processing
+- AI-generated responses via text-to-speech
+- Multi-modal interactions combining audio and video
+- Integration with LLMs and other AI services
+
+### Video Applications
+Develop custom video experiences including:
+- Desktop video conferencing clients
+- Screen sharing and presentation tools
+- Video monitoring and surveillance systems
+- Interactive video streaming applications
+
+### Media Processing Pipelines
+Construct sophisticated media workflows:
+- Real-time audio/video filtering and enhancement
+- Meeting analytics and insights extraction
+- Custom recording and archival solutions
+- Live streaming with dynamic overlays
+
+## System Requirements
+
+Before installing the Daily Python SDK, ensure your system meets these requirements:
+
+- **Python Version**: Python 3.7 or newer
+- **Operating System**: Linux with glibc 2.28 or newer (Ubuntu 18.04+, Debian 10+, etc.)
+- **Platform**: x86_64 architecture
+
+<Warning>
+  The Daily Python SDK currently supports Linux platforms only. MacOS and Windows support may be added in future releases.
+</Warning>
+
+## Architecture Overview
+
+The SDK is built on top of Daily's WebRTC infrastructure and provides a Pythonic interface to:
+
+1. **CallClient** - The main client for managing your connection to Daily meetings
+2. **EventHandler** - Callback-based event system for handling meeting events
+3. **Virtual Devices** - Programmatic control over media inputs and outputs
+4. **Media Processing** - Direct access to raw audio and video frames
+
+The SDK handles all the complexity of WebRTC connections, media encoding/decoding, and network management, allowing you to focus on building your application logic.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/installation">
+    Install the Daily Python SDK and verify your setup
+  </Card>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Build your first application in minutes
+  </Card>
+  <Card title="API Reference" icon="code" href="https://reference-python.daily.co">
+    Explore the complete API documentation
+  </Card>
+  <Card title="Examples" icon="folder-open" href="https://github.com/daily-co/daily-python/tree/main/demos">
+    Browse real-world code examples
+  </Card>
+</CardGroup>
+
+## Getting Help
+
+If you need assistance or have questions:
+
+- Join our [Discord community](https://discord.gg/dailyco)
+- Browse the [demos directory](https://github.com/daily-co/daily-python/tree/main/demos) for code examples
+- Check the [API reference documentation](https://reference-python.daily.co)
+- Visit [Daily's main documentation](https://docs.daily.co) for platform-wide guides

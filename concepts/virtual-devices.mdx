@@ -1,0 +1,518 @@
+---
+title: 'Virtual Devices'
+description: 'Create and control virtual cameras, microphones, and speakers'
+---
+
+Virtual devices in the Daily Python SDK allow you to programmatically send and receive audio and video in a Daily call. Instead of using physical hardware, you can create virtual cameras, microphones, and speakers that your code can write to and read from.
+
+## Why Use Virtual Devices?
+
+Virtual devices are essential for:
+
+- Building bots and AI agents that interact with video calls
+- Sending pre-recorded or generated audio/video content
+- Processing media in real-time (e.g., filters, transcription, AI models)
+- Capturing call audio/video for recording or analysis
+- Testing without physical hardware
+- Building voice assistants and conversational AI
+
+## Virtual Camera Device
+
+A `VirtualCameraDevice` allows you to send video frames into a Daily call.
+
+### Creating a Virtual Camera
+
+Create a virtual camera with the `Daily.create_camera_device()` static method:
+
+```python
+from daily import Daily
+
+camera = Daily.create_camera_device(
+    device_name="my-camera",
+    width=1920,
+    height=1080,
+    color_format="RGBA"  # Options: "RGBA", "RGB", "ARGB", "ABGR"
+)
+```
+
+### Properties
+
+```python
+name = camera.name           # Device name
+width = camera.width         # Frame width in pixels
+height = camera.height       # Frame height in pixels
+format = camera.color_format # Color format
+```
+
+### Writing Frames
+
+Send video frames using `write_frame()`:
+
+```python
+def write_frame(self, frame: bytes) -> None
+```
+
+**Example: Sending an image**
+
+```python
+from PIL import Image
+import time
+from daily import Daily
+
+# Open an image
+image = Image.open("example.jpg")
+
+# Create virtual camera matching image dimensions
+camera = Daily.create_camera_device(
+    "my-camera",
+    width=image.width,
+    height=image.height,
+    color_format="RGB"
+)
+
+# Convert image to bytes
+image_bytes = image.tobytes()
+
+# Send frames at 30 fps
+while True:
+    camera.write_frame(image_bytes)
+    time.sleep(1.0 / 30)  # 30 fps
+```
+
+### Using with CallClient
+
+To use a virtual camera in a call, specify it in the `client_settings`:
+
+```python
+from daily import Daily, CallClient
+
+# Initialize Daily SDK
+Daily.init()
+
+# Create virtual camera
+camera = Daily.create_camera_device(
+    "my-camera",
+    width=640,
+    height=480,
+    color_format="RGB"
+)
+
+# Create call client
+client = CallClient()
+
+# Join with virtual camera
+client.join(
+    meeting_url="https://example.daily.co/room",
+    client_settings={
+        "inputs": {
+            "camera": {
+                "isEnabled": True,
+                "settings": {"deviceId": "my-camera"}
+            },
+            "microphone": False
+        }
+    }
+)
+```
+
+## Virtual Microphone Device
+
+A `VirtualMicrophoneDevice` allows you to send audio into a Daily call.
+
+### Creating a Virtual Microphone
+
+Create a virtual microphone with the `Daily.create_microphone_device()` static method:
+
+```python
+from daily import Daily
+
+mic = Daily.create_microphone_device(
+    device_name="my-mic",
+    sample_rate=16000,      # Samples per second
+    channels=1,             # 1 for mono, 2 for stereo
+    non_blocking=False      # Whether write operations block
+)
+```
+
+### Properties
+
+```python
+name = mic.name               # Device name
+sample_rate = mic.sample_rate # Sample rate in Hz
+channels = mic.channels       # Number of audio channels
+```
+
+### Writing Audio Frames
+
+Send audio data using `write_frames()`:
+
+```python
+def write_frames(
+    self,
+    frame: bytes,
+    completion: Optional[Callable[[int], None]] = None
+) -> int
+```
+
+Returns the number of frames written.
+
+**Example: Sending WAV file audio**
+
+```python
+import wave
+from daily import Daily
+
+# Create virtual microphone
+mic = Daily.create_microphone_device(
+    "my-mic",
+    sample_rate=16000,
+    channels=1
+)
+
+# Open WAV file
+wav = wave.open("audio.wav", "rb")
+sample_rate = wav.getframerate()
+
+# Send audio in chunks
+while True:
+    # Read 100ms worth of audio
+    frames = wav.readframes(int(sample_rate / 10))
+    if len(frames) == 0:
+        break
+    
+    mic.write_frames(frames)
+```
+
+**Example: Sending raw PCM audio**
+
+```python
+import sys
+from daily import Daily
+
+mic = Daily.create_microphone_device(
+    "my-mic",
+    sample_rate=16000,
+    channels=1
+)
+
+# Read raw audio from stdin and send to mic
+while True:
+    # Read 100ms of 16-bit mono audio at 16kHz
+    # 16000 samples/sec * 0.1 sec * 2 bytes/sample = 3200 bytes
+    audio_chunk = sys.stdin.buffer.read(3200)
+    if len(audio_chunk) == 0:
+        break
+    
+    mic.write_frames(audio_chunk)
+```
+
+### Using with CallClient
+
+```python
+from daily import Daily, CallClient
+
+Daily.init()
+
+# Create virtual microphone
+mic = Daily.create_microphone_device(
+    "my-mic",
+    sample_rate=16000,
+    channels=1
+)
+
+# Create call client
+client = CallClient()
+
+# Join with virtual microphone
+client.join(
+    meeting_url="https://example.daily.co/room",
+    client_settings={
+        "inputs": {
+            "camera": False,
+            "microphone": {
+                "isEnabled": True,
+                "settings": {"deviceId": "my-mic"}
+            }
+        }
+    }
+)
+```
+
+## Virtual Speaker Device
+
+A `VirtualSpeakerDevice` allows you to receive audio from a Daily call.
+
+### Creating a Virtual Speaker
+
+Create a virtual speaker with the `Daily.create_speaker_device()` static method:
+
+```python
+from daily import Daily
+
+speaker = Daily.create_speaker_device(
+    device_name="my-speaker",
+    sample_rate=16000,
+    channels=1,
+    non_blocking=False
+)
+```
+
+### Properties
+
+```python
+name = speaker.name               # Device name
+sample_rate = speaker.sample_rate # Sample rate in Hz
+channels = speaker.channels       # Number of audio channels
+```
+
+### Reading Audio Frames
+
+Receive audio data using `read_frames()`:
+
+```python
+def read_frames(
+    self,
+    num_frames: int,
+    completion: Optional[Callable[[bytes], None]] = None
+) -> bytes
+```
+
+**Example: Receiving audio to file**
+
+```python
+import sys
+from daily import Daily
+
+# Create virtual speaker
+speaker = Daily.create_speaker_device(
+    "my-speaker",
+    sample_rate=16000,
+    channels=1
+)
+
+# Select this speaker as the output device
+Daily.select_speaker_device("my-speaker")
+
+# Read audio and write to stdout
+while True:
+    # Read 100ms worth of audio frames
+    buffer = speaker.read_frames(int(16000 / 10))
+    if len(buffer) > 0:
+        sys.stdout.buffer.write(buffer)
+```
+
+### Using with CallClient
+
+After creating a virtual speaker, select it as the active speaker device:
+
+```python
+from daily import Daily, CallClient
+
+Daily.init()
+
+# Create and select virtual speaker
+speaker = Daily.create_speaker_device(
+    "my-speaker",
+    sample_rate=16000,
+    channels=1
+)
+Daily.select_speaker_device("my-speaker")
+
+# Create call client with audio subscription
+client = CallClient()
+client.update_subscription_profiles({
+    "base": {
+        "camera": "unsubscribed",
+        "microphone": "subscribed"
+    }
+})
+
+# Join the call
+client.join(meeting_url="https://example.daily.co/room")
+
+# Read audio from the speaker
+while True:
+    audio_data = speaker.read_frames(1600)  # 100ms at 16kHz
+    # Process audio_data...
+```
+
+## Complete Example: Audio Bot
+
+Here's a complete example of a bot that joins a call and plays audio:
+
+```python
+import threading
+import wave
+from daily import Daily, CallClient
+
+class AudioBot:
+    def __init__(self, audio_file):
+        # Create virtual microphone
+        self.mic = Daily.create_microphone_device(
+            "my-mic",
+            sample_rate=16000,
+            channels=1
+        )
+        
+        self.client = CallClient()
+        self.audio_file = audio_file
+        self.start_event = threading.Event()
+        self.quit = False
+        
+        # Start audio thread
+        self.thread = threading.Thread(target=self.send_audio)
+        self.thread.start()
+    
+    def on_joined(self, data, error):
+        if error:
+            print(f"Join failed: {error}")
+        else:
+            print("Bot joined successfully")
+        self.start_event.set()
+    
+    def run(self, meeting_url):
+        self.client.join(
+            meeting_url,
+            client_settings={
+                "inputs": {
+                    "camera": False,
+                    "microphone": {
+                        "isEnabled": True,
+                        "settings": {"deviceId": "my-mic"}
+                    }
+                }
+            },
+            completion=self.on_joined
+        )
+        
+        self.thread.join()
+    
+    def send_audio(self):
+        # Wait for join to complete
+        self.start_event.wait()
+        
+        # Open and play WAV file
+        wav = wave.open(self.audio_file, "rb")
+        sample_rate = wav.getframerate()
+        
+        while not self.quit:
+            # Read 100ms chunks
+            frames = wav.readframes(int(sample_rate / 10))
+            if len(frames) == 0:
+                break
+            
+            self.mic.write_frames(frames)
+        
+        wav.close()
+    
+    def cleanup(self):
+        self.quit = True
+        self.thread.join()
+        self.client.leave()
+        self.client.release()
+
+# Run the bot
+if __name__ == "__main__":
+    Daily.init()
+    
+    bot = AudioBot("greeting.wav")
+    
+    try:
+        bot.run("https://example.daily.co/room")
+    except KeyboardInterrupt:
+        print("Interrupted")
+    finally:
+        bot.cleanup()
+```
+
+## Audio Format Details
+
+Virtual audio devices use **16-bit signed PCM** format:
+
+- Sample format: 16-bit signed integer (little-endian)
+- Common sample rates: 8000, 16000, 24000, 48000 Hz
+- Channels: 1 (mono) or 2 (stereo)
+- Byte order: Little-endian
+
+### Calculating Buffer Sizes
+
+For a given duration of audio:
+
+```python
+bytes_per_sample = 2  # 16-bit = 2 bytes
+buffer_size = sample_rate * duration_seconds * channels * bytes_per_sample
+
+# Example: 100ms of 16kHz mono audio
+buffer_size = 16000 * 0.1 * 1 * 2  # = 3200 bytes
+```
+
+## Video Format Details
+
+Virtual camera devices support multiple color formats:
+
+| Format | Bytes per Pixel | Description |
+|--------|----------------|-------------|
+| `RGB`  | 3 | Red, Green, Blue |
+| `RGBA` | 4 | Red, Green, Blue, Alpha |
+| `ARGB` | 4 | Alpha, Red, Green, Blue |
+| `ABGR` | 4 | Alpha, Blue, Green, Red |
+
+### Calculating Frame Sizes
+
+```python
+frame_size = width * height * bytes_per_pixel
+
+# Example: 1920x1080 RGBA frame
+frame_size = 1920 * 1080 * 4  # = 8,294,400 bytes
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Match sample rates to your source">
+    Use the same sample rate for your virtual device as your audio source to avoid quality loss from resampling.
+  </Accordion>
+  
+  <Accordion title="Send frames at consistent intervals">
+    For smooth audio/video, send frames at regular intervals matching your frame rate or sample rate.
+  </Accordion>
+  
+  <Accordion title="Handle blocking vs non-blocking">
+    Use `non_blocking=True` for audio devices if you need precise timing control and don't want writes to block when the buffer is full.
+  </Accordion>
+  
+  <Accordion title="Clean up resources">
+    Virtual devices are automatically cleaned up when the Daily SDK is deinitialized, but explicitly release resources when done for best practices.
+  </Accordion>
+</AccordionGroup>
+
+## Use Cases
+
+<CardGroup cols={2}>
+  <Card title="AI Voice Assistants" icon="robot">
+    Use virtual microphones to send synthesized speech and speakers to capture user audio for transcription.
+  </Card>
+  
+  <Card title="Video Bots" icon="video">
+    Send generated or pre-recorded video content using virtual cameras for automated participants.
+  </Card>
+  
+  <Card title="Media Processing" icon="waveform">
+    Capture call audio/video with virtual speakers/renderers for real-time processing or recording.
+  </Card>
+  
+  <Card title="Testing" icon="flask">
+    Test your application without physical hardware by using virtual devices with sample media.
+  </Card>
+</CardGroup>
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="CallClient" icon="phone" href="/concepts/call-client">
+    Learn how to use virtual devices with CallClient
+  </Card>
+  <Card title="Event Handling" icon="bell" href="/concepts/event-handling">
+    Respond to call events
+  </Card>
+</CardGroup>

@@ -1,0 +1,196 @@
+---
+title: "AudioData"
+description: "Audio data class for receiving raw audio frames in renderers"
+---
+
+The `AudioData` class represents raw audio data received in audio renderer callbacks. It provides access to audio frame metadata and the raw audio samples.
+
+## Class Definition
+
+```python
+class AudioData:
+    @property
+    def bits_per_sample(self) -> int: ...
+    @property
+    def sample_rate(self) -> int: ...
+    @property
+    def num_channels(self) -> int: ...
+    @property
+    def num_audio_frames(self) -> int: ...
+    @property
+    def audio_frames(self) -> bytes: ...
+```
+
+## Properties
+
+### bits_per_sample
+
+```python
+@property
+def bits_per_sample(self) -> int
+```
+
+The number of bits per audio sample (typically 16).
+
+**Returns:** `int` - Bits per sample
+
+### sample_rate
+
+```python
+@property
+def sample_rate(self) -> int
+```
+
+The audio sample rate in Hz (e.g., 16000, 44100, 48000).
+
+**Returns:** `int` - Sample rate in Hz
+
+### num_channels
+
+```python
+@property
+def num_channels(self) -> int
+```
+
+The number of audio channels (1 for mono, 2 for stereo).
+
+**Returns:** `int` - Number of channels
+
+### num_audio_frames
+
+```python
+@property
+def num_audio_frames(self) -> int
+```
+
+The number of audio frames (samples per channel) in this buffer.
+
+**Returns:** `int` - Number of audio frames
+
+### audio_frames
+
+```python
+@property
+def audio_frames(self) -> bytes
+```
+
+The raw audio data as bytes. The format is interleaved PCM audio.
+
+**Returns:** `bytes` - Raw audio frame data
+
+## Usage in Audio Renderers
+
+`AudioData` objects are received in audio renderer callbacks that you set with `set_audio_renderer()`.
+
+### Example: Basic Audio Renderer
+
+```python
+from daily import CallClient, AudioData
+import wave
+
+def audio_callback(participant_id: str, audio_data: AudioData, audio_source: str):
+    # Access audio metadata
+    print(f"Sample rate: {audio_data.sample_rate} Hz")
+    print(f"Channels: {audio_data.num_channels}")
+    print(f"Frames: {audio_data.num_audio_frames}")
+    print(f"Bits per sample: {audio_data.bits_per_sample}")
+    
+    # Get raw audio frames
+    raw_audio = audio_data.audio_frames
+    print(f"Audio data size: {len(raw_audio)} bytes")
+
+# Set up audio renderer
+client = CallClient()
+client.set_audio_renderer(
+    participant_id="participant-id",
+    callback=audio_callback,
+    sample_rate=16000,
+    callback_interval_ms=20
+)
+```
+
+### Example: Saving Audio to WAV File
+
+```python
+from daily import CallClient, AudioData
+import wave
+
+class AudioRecorder:
+    def __init__(self, filename: str):
+        self.filename = filename
+        self.wav_file = None
+        
+    def audio_callback(self, participant_id: str, audio_data: AudioData, audio_source: str):
+        # Initialize WAV file on first callback
+        if self.wav_file is None:
+            self.wav_file = wave.open(self.filename, 'wb')
+            self.wav_file.setnchannels(audio_data.num_channels)
+            self.wav_file.setsampwidth(audio_data.bits_per_sample // 8)
+            self.wav_file.setframerate(audio_data.sample_rate)
+        
+        # Write audio frames to file
+        self.wav_file.writeframes(audio_data.audio_frames)
+    
+    def close(self):
+        if self.wav_file:
+            self.wav_file.close()
+
+# Usage
+recorder = AudioRecorder("output.wav")
+client = CallClient()
+client.set_audio_renderer(
+    participant_id="participant-id",
+    callback=recorder.audio_callback,
+    sample_rate=16000
+)
+
+# Later: stop recording
+recorder.close()
+```
+
+### Example: Processing Audio Frames
+
+```python
+from daily import CallClient, AudioData
+import numpy as np
+
+def process_audio(participant_id: str, audio_data: AudioData, audio_source: str):
+    # Convert bytes to numpy array for processing
+    # Assuming 16-bit PCM audio
+    audio_array = np.frombuffer(
+        audio_data.audio_frames,
+        dtype=np.int16
+    )
+    
+    # Reshape for multi-channel audio
+    if audio_data.num_channels > 1:
+        audio_array = audio_array.reshape(-1, audio_data.num_channels)
+    
+    # Process audio (e.g., compute volume)
+    volume = np.abs(audio_array).mean()
+    print(f"Average volume: {volume}")
+    
+    # Apply audio processing, filters, etc.
+    # ...
+
+client = CallClient()
+client.set_audio_renderer(
+    participant_id="participant-id",
+    callback=process_audio,
+    sample_rate=16000
+)
+```
+
+## Notes
+
+- `AudioData` objects are read-only and provided by the SDK
+- The audio data format is interleaved PCM (Pulse Code Modulation)
+- For stereo audio, samples are interleaved: [L, R, L, R, ...]
+- The total size of `audio_frames` in bytes is: `num_audio_frames * num_channels * (bits_per_sample / 8)`
+- Audio renderers are called at the interval specified by `callback_interval_ms` in `set_audio_renderer()`
+
+## See Also
+
+- [CallClient.set_audio_renderer()](/api/call-client#set_audio_renderer) - Set up audio renderer callbacks
+- [VideoFrame](/api/video-frame) - Video frame data for video renderers
+- [CustomAudioSource](/api/custom-audio) - Send custom audio to a call

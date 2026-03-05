@@ -1,0 +1,359 @@
+---
+title: 'CallClient'
+description: 'The core interface for managing Daily video calls'
+---
+
+The `CallClient` class is the primary interface for managing Daily video calls in Python. It handles joining and leaving calls, managing participants, controlling media inputs and outputs, and coordinating recordings and live streams.
+
+## Creating a CallClient
+
+Create a `CallClient` instance with an optional event handler:
+
+```python
+from daily import CallClient, EventHandler
+
+# Create without event handler
+client = CallClient()
+
+# Or create with custom event handler
+class MyEventHandler(EventHandler):
+    def on_participant_joined(self, participant):
+        print(f"Participant joined: {participant}")
+
+client = CallClient(event_handler=MyEventHandler())
+```
+
+## Lifecycle Methods
+
+### join()
+
+Join a Daily meeting with a meeting URL and optional configuration:
+
+```python
+def join(
+    self,
+    meeting_url: str,
+    meeting_token: Optional[str] = None,
+    client_settings: Optional[Mapping[str, Any]] = None,
+    completion: Optional[Callable[[Optional[Mapping[str, Any]], Optional[str]], None]] = None,
+) -> None
+```
+
+**Example:**
+
+```python
+def on_joined(data, error):
+    if error:
+        print(f"Failed to join: {error}")
+    else:
+        print("Successfully joined the meeting")
+
+client.join(
+    meeting_url="https://example.daily.co/room",
+    meeting_token="your-token",  # Optional
+    client_settings={
+        "inputs": {
+            "camera": {"isEnabled": True, "settings": {"deviceId": "my-camera"}},
+            "microphone": {"isEnabled": True, "settings": {"deviceId": "my-mic"}},
+        }
+    },
+    completion=on_joined
+)
+```
+
+### leave()
+
+Leave the current meeting:
+
+```python
+def leave(
+    self,
+    completion: Optional[Callable[[Optional[str]], None]] = None
+) -> None
+```
+
+**Example:**
+
+```python
+def on_left(error):
+    if error:
+        print(f"Error leaving: {error}")
+    else:
+        print("Left successfully")
+
+client.leave(completion=on_left)
+```
+
+### release()
+
+Release resources associated with the client. Always call this when done:
+
+```python
+client.release()
+```
+
+## Media Control Methods
+
+### update_inputs()
+
+Update camera and microphone settings:
+
+```python
+def update_inputs(
+    self,
+    input_settings: Mapping[str, Any],
+    completion: Optional[Callable[[Optional[str]], None]] = None,
+) -> None
+```
+
+**Example:**
+
+```python
+client.update_inputs({
+    "camera": {"isEnabled": False},
+    "microphone": {"isEnabled": True}
+})
+```
+
+### update_publishing()
+
+Control which tracks are being published to the call:
+
+```python
+def update_publishing(
+    self,
+    publishing_settings: Mapping[str, Any],
+    completion: Optional[Callable[[Optional[str]], None]] = None,
+) -> None
+```
+
+**Example:**
+
+```python
+client.update_publishing({
+    "camera": {"sendSettings": {"maxQuality": "high"}},
+    "microphone": True
+})
+```
+
+### update_subscriptions()
+
+Control which remote participants' tracks you're subscribing to:
+
+```python
+def update_subscriptions(
+    self,
+    participant_settings: Optional[Mapping[str, Any]] = None,
+    profile_settings: Optional[Mapping[str, Any]] = None,
+    completion: Optional[Callable[[Optional[str]], None]] = None,
+) -> None
+```
+
+**Example:**
+
+```python
+# Subscribe to all participants' audio but not video
+client.update_subscription_profiles({
+    "base": {
+        "camera": "unsubscribed",
+        "microphone": "subscribed"
+    }
+})
+```
+
+## Participant Management
+
+### participants()
+
+Get information about all participants in the call:
+
+```python
+participants = client.participants()
+for participant_id, participant_data in participants.items():
+    print(f"{participant_id}: {participant_data}")
+```
+
+### update_remote_participants()
+
+Update settings for remote participants (requires owner permissions):
+
+```python
+def update_remote_participants(
+    self,
+    remote_participants: Mapping[str, Any],
+    completion: Optional[Callable[[Optional[str]], None]] = None,
+) -> None
+```
+
+**Example:**
+
+```python
+# Mute a specific participant
+client.update_remote_participants({
+    "participant-id": {
+        "permissions": {"canSend": []}
+    }
+})
+```
+
+### eject_remote_participants()
+
+Remove participants from the call (requires owner permissions):
+
+```python
+client.eject_remote_participants(["participant-id-1", "participant-id-2"])
+```
+
+## Recording and Streaming
+
+### start_recording()
+
+Start cloud recording:
+
+```python
+def on_recording_started(stream_id, error):
+    if error:
+        print(f"Recording failed: {error}")
+    else:
+        print(f"Recording started: {stream_id}")
+
+client.start_recording(
+    streaming_settings={
+        "width": 1920,
+        "height": 1080,
+        "fps": 30
+    },
+    completion=on_recording_started
+)
+```
+
+### stop_recording()
+
+Stop an active recording:
+
+```python
+client.stop_recording(stream_id="recording-id")
+```
+
+### start_live_stream_with_rtmp_urls()
+
+Start live streaming to RTMP endpoints:
+
+```python
+client.start_live_stream_with_rtmp_urls(
+    rtmp_urls=["rtmp://your-streaming-server/live"],
+    streaming_settings={
+        "width": 1920,
+        "height": 1080
+    }
+)
+```
+
+### stop_live_stream()
+
+Stop an active live stream:
+
+```python
+client.stop_live_stream(stream_id="stream-id")
+```
+
+## Transcription
+
+### start_transcription()
+
+Start real-time transcription:
+
+```python
+client.start_transcription(
+    settings={
+        "language": "en",
+        "model": "nova-2"
+    }
+)
+```
+
+### stop_transcription()
+
+Stop active transcription:
+
+```python
+client.stop_transcription()
+```
+
+## Complete Example
+
+Here's a complete example of using `CallClient` to join a call, send audio, and leave:
+
+```python
+import threading
+from daily import Daily, CallClient
+
+class MyApp:
+    def __init__(self):
+        # Create virtual microphone device
+        self.mic = Daily.create_microphone_device(
+            "my-mic",
+            sample_rate=16000,
+            channels=1
+        )
+        
+        # Create call client
+        self.client = CallClient()
+        self.start_event = threading.Event()
+        
+    def on_joined(self, data, error):
+        if error:
+            print(f"Join failed: {error}")
+        else:
+            print("Joined successfully!")
+        self.start_event.set()
+        
+    def run(self, meeting_url):
+        # Join the meeting
+        self.client.join(
+            meeting_url,
+            client_settings={
+                "inputs": {
+                    "camera": False,
+                    "microphone": {
+                        "isEnabled": True,
+                        "settings": {"deviceId": "my-mic"}
+                    },
+                }
+            },
+            completion=self.on_joined
+        )
+        
+        # Wait for join to complete
+        self.start_event.wait()
+        
+        # Your application logic here
+        # ...
+        
+    def cleanup(self):
+        self.client.leave()
+        self.client.release()
+
+# Initialize Daily SDK
+Daily.init()
+
+# Run the app
+app = MyApp()
+try:
+    app.run("https://example.daily.co/room")
+except KeyboardInterrupt:
+    print("Interrupted!")
+finally:
+    app.cleanup()
+```
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Event Handling" icon="bell" href="/concepts/event-handling">
+    Learn how to respond to call events
+  </Card>
+  <Card title="Virtual Devices" icon="microchip" href="/concepts/virtual-devices">
+    Work with virtual cameras and microphones
+  </Card>
+</CardGroup>

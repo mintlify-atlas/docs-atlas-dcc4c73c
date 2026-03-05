@@ -1,0 +1,745 @@
+---
+title: "EventHandler"
+description: "Event callback interface for handling call events"
+---
+
+The `EventHandler` class provides callback methods for all Daily call events. Create a subclass and override the methods you want to handle.
+
+## Overview
+
+The EventHandler receives notifications about call state changes, participants, media events, and more. Pass your EventHandler instance to the CallClient constructor.
+
+```python
+from daily import EventHandler, CallClient
+
+class MyEventHandler(EventHandler):
+    def on_participant_joined(self, participant):
+        print(f"Participant joined: {participant['info']['userName']}")
+    
+    def on_call_state_updated(self, state):
+        print(f"Call state: {state}")
+
+client = CallClient(event_handler=MyEventHandler())
+```
+
+---
+
+## Constructor
+
+### \_\_init\_\_()
+
+Creates a new EventHandler instance.
+
+```python
+handler = MyEventHandler()
+```
+
+#### Returns
+
+<ResponseField type="EventHandler">
+  A new EventHandler instance.
+</ResponseField>
+
+---
+
+## Call State Events
+
+### on_call_state_updated()
+
+Called when the call state changes.
+
+```python
+def on_call_state_updated(self, state: str) -> None:
+    print(f"Call state: {state}")
+    # States: "initialized", "joining", "joined", "left", "error"
+```
+
+#### Parameters
+
+<ParamField path="state" type="str" required>
+  The new call state. Possible values:
+  - `"initialized"` - Client is initialized
+  - `"joining"` - Joining the call
+  - `"joined"` - Successfully joined
+  - `"left"` - Left the call
+  - `"error"` - Error occurred
+</ParamField>
+
+---
+
+### on_error()
+
+Called when a call error occurs.
+
+```python
+def on_error(self, message: str) -> None:
+    print(f"Call error: {message}")
+```
+
+#### Parameters
+
+<ParamField path="message" type="str" required>
+  Error message describing what went wrong.
+</ParamField>
+
+---
+
+## Participant Events
+
+### on_participant_joined()
+
+Called when a participant joins the call.
+
+```python
+def on_participant_joined(self, participant: Mapping[str, Any]) -> None:
+    print(f"Joined: {participant['info']['userName']}")
+    print(f"ID: {participant['id']}")
+```
+
+#### Parameters
+
+<ParamField path="participant" type="Mapping[str, Any]" required>
+  Dictionary containing participant information:
+  - `id` - Participant ID
+  - `info` - User info (userName, etc.)
+  - `media` - Media state information
+  - `permissions` - Participant permissions
+</ParamField>
+
+---
+
+### on_participant_updated()
+
+Called when participant information changes.
+
+```python
+def on_participant_updated(self, participant: Mapping[str, Any]) -> None:
+    print(f"Updated: {participant['id']}")
+    if participant['media'].get('camera', {}).get('state') == 'playable':
+        print("Camera is now available")
+```
+
+#### Parameters
+
+<ParamField path="participant" type="Mapping[str, Any]" required>
+  Dictionary containing updated participant information.
+</ParamField>
+
+---
+
+### on_participant_left()
+
+Called when a participant leaves the call.
+
+```python
+def on_participant_left(self, participant: Mapping[str, Any], reason: str) -> None:
+    print(f"Left: {participant['info']['userName']} - {reason}")
+```
+
+#### Parameters
+
+<ParamField path="participant" type="Mapping[str, Any]" required>
+  Dictionary containing information about the participant who left.
+</ParamField>
+
+<ParamField path="reason" type="str" required>
+  Reason for leaving (e.g., "leftCall", "hidden", "ejected").
+</ParamField>
+
+---
+
+### on_participant_counts_updated()
+
+Called when participant counts change.
+
+```python
+def on_participant_counts_updated(self, counts: Mapping[str, Any]) -> None:
+    print(f"Present: {counts['present']}, Hidden: {counts['hidden']}")
+```
+
+#### Parameters
+
+<ParamField path="counts" type="Mapping[str, Any]" required>
+  Dictionary containing participant counts:
+  - `present` - Number of visible participants
+  - `hidden` - Number of hidden participants
+</ParamField>
+
+---
+
+### on_active_speaker_changed()
+
+Called when the active speaker changes.
+
+```python
+def on_active_speaker_changed(self, participant: Mapping[str, Any]) -> None:
+    print(f"Active speaker: {participant.get('participantId')}")
+```
+
+#### Parameters
+
+<ParamField path="participant" type="Mapping[str, Any]" required>
+  Dictionary containing active speaker information including `participantId`.
+</ParamField>
+
+---
+
+## Media Events
+
+### on_inputs_updated()
+
+Called when input settings (camera/microphone) are updated.
+
+```python
+def on_inputs_updated(self, input_settings: Mapping[str, Any]) -> None:
+    print(f"Camera enabled: {input_settings['camera']['isEnabled']}")
+    print(f"Mic enabled: {input_settings['microphone']['isEnabled']}")
+```
+
+#### Parameters
+
+<ParamField path="input_settings" type="Mapping[str, Any]" required>
+  Dictionary containing updated input settings for camera and microphone.
+</ParamField>
+
+---
+
+### on_publishing_updated()
+
+Called when publishing settings are updated.
+
+```python
+def on_publishing_updated(self, publishing_settings: Mapping[str, Any]) -> None:
+    print(f"Publishing camera: {publishing_settings['camera']['isPublishing']}")
+```
+
+#### Parameters
+
+<ParamField path="publishing_settings" type="Mapping[str, Any]" required>
+  Dictionary containing updated publishing settings.
+</ParamField>
+
+---
+
+### on_subscriptions_updated()
+
+Called when subscription settings are updated.
+
+```python
+def on_subscriptions_updated(self, subscriptions: Mapping[str, Any]) -> None:
+    for participant_id, settings in subscriptions.items():
+        print(f"{participant_id}: {settings}")
+```
+
+#### Parameters
+
+<ParamField path="subscriptions" type="Mapping[str, Any]" required>
+  Dictionary mapping participant IDs to their subscription settings.
+</ParamField>
+
+---
+
+### on_subscription_profiles_updated()
+
+Called when subscription profiles are updated.
+
+```python
+def on_subscription_profiles_updated(self, subscription_profiles: Mapping[str, Any]) -> None:
+    print(f"Profiles: {subscription_profiles}")
+```
+
+#### Parameters
+
+<ParamField path="subscription_profiles" type="Mapping[str, Any]" required>
+  Dictionary containing updated subscription profile configurations.
+</ParamField>
+
+---
+
+### on_available_devices_updated()
+
+Called when the list of available media devices changes.
+
+```python
+def on_available_devices_updated(self, available_devices: Mapping[str, Any]) -> None:
+    print(f"Cameras: {len(available_devices.get('camera', []))}")
+    print(f"Microphones: {len(available_devices.get('microphone', []))}")
+```
+
+#### Parameters
+
+<ParamField path="available_devices" type="Mapping[str, Any]" required>
+  Dictionary containing lists of available devices by type (camera, microphone, speaker).
+</ParamField>
+
+---
+
+## Recording Events
+
+### on_recording_started()
+
+Called when recording starts.
+
+```python
+def on_recording_started(self, status: Mapping[str, Any]) -> None:
+    print(f"Recording started: {status.get('streamId')}")
+```
+
+#### Parameters
+
+<ParamField path="status" type="Mapping[str, Any]" required>
+  Dictionary containing recording status information including `streamId`.
+</ParamField>
+
+---
+
+### on_recording_stopped()
+
+Called when recording stops.
+
+```python
+def on_recording_stopped(self, stream_id: str) -> None:
+    print(f"Recording stopped: {stream_id}")
+```
+
+#### Parameters
+
+<ParamField path="stream_id" type="str" required>
+  The ID of the recording stream that stopped.
+</ParamField>
+
+---
+
+### on_recording_error()
+
+Called when a recording error occurs.
+
+```python
+def on_recording_error(self, stream_id: str, message: str) -> None:
+    print(f"Recording error on {stream_id}: {message}")
+```
+
+#### Parameters
+
+<ParamField path="stream_id" type="str" required>
+  The ID of the recording stream that encountered an error.
+</ParamField>
+
+<ParamField path="message" type="str" required>
+  Error message describing what went wrong.
+</ParamField>
+
+---
+
+## Live Streaming Events
+
+### on_live_stream_started()
+
+Called when live streaming starts.
+
+```python
+def on_live_stream_started(self, status: Mapping[str, Any]) -> None:
+    print(f"Stream started: {status.get('streamId')}")
+```
+
+#### Parameters
+
+<ParamField path="status" type="Mapping[str, Any]" required>
+  Dictionary containing live stream status information.
+</ParamField>
+
+---
+
+### on_live_stream_updated()
+
+Called when live stream settings are updated.
+
+```python
+def on_live_stream_updated(self, state: str) -> None:
+    print(f"Stream state: {state}")
+```
+
+#### Parameters
+
+<ParamField path="state" type="str" required>
+  The updated stream state.
+</ParamField>
+
+---
+
+### on_live_stream_stopped()
+
+Called when live streaming stops.
+
+```python
+def on_live_stream_stopped(self, stream_id: str) -> None:
+    print(f"Stream stopped: {stream_id}")
+```
+
+#### Parameters
+
+<ParamField path="stream_id" type="str" required>
+  The ID of the stream that stopped.
+</ParamField>
+
+---
+
+### on_live_stream_error()
+
+Called when a live streaming error occurs.
+
+```python
+def on_live_stream_error(self, stream_id: str, message: str) -> None:
+    print(f"Stream error on {stream_id}: {message}")
+```
+
+#### Parameters
+
+<ParamField path="stream_id" type="str" required>
+  The ID of the stream that encountered an error.
+</ParamField>
+
+<ParamField path="message" type="str" required>
+  Error message describing what went wrong.
+</ParamField>
+
+---
+
+### on_live_stream_warning()
+
+Called when a live streaming warning occurs.
+
+```python
+def on_live_stream_warning(self, stream_id: str, message: str) -> None:
+    print(f"Stream warning on {stream_id}: {message}")
+```
+
+#### Parameters
+
+<ParamField path="stream_id" type="str" required>
+  The ID of the stream that generated the warning.
+</ParamField>
+
+<ParamField path="message" type="str" required>
+  Warning message.
+</ParamField>
+
+---
+
+## Transcription Events
+
+### on_transcription_started()
+
+Called when transcription starts.
+
+```python
+def on_transcription_started(self, status: Mapping[str, Any]) -> None:
+    print(f"Transcription started: {status}")
+```
+
+#### Parameters
+
+<ParamField path="status" type="Mapping[str, Any]" required>
+  Dictionary containing transcription status information.
+</ParamField>
+
+---
+
+### on_transcription_message()
+
+Called when a transcription message is received.
+
+```python
+def on_transcription_message(self, message: Mapping[str, Any]) -> None:
+    participant_id = message.get('participantId')
+    text = message.get('text')
+    is_final = message.get('isFinal', False)
+    print(f"{participant_id}: {text} (final={is_final})")
+```
+
+#### Parameters
+
+<ParamField path="message" type="Mapping[str, Any]" required>
+  Dictionary containing transcription message data:
+  - `participantId` - ID of the speaking participant
+  - `text` - Transcribed text
+  - `isFinal` - Whether this is a final transcription
+  - `timestamp` - Message timestamp
+</ParamField>
+
+---
+
+### on_transcription_stopped()
+
+Called when transcription stops.
+
+```python
+def on_transcription_stopped(self, stopped_by: str, stopped_by_error: bool) -> None:
+    print(f"Transcription stopped by {stopped_by}, error={stopped_by_error}")
+```
+
+#### Parameters
+
+<ParamField path="stopped_by" type="str" required>
+  Identifier of who/what stopped the transcription.
+</ParamField>
+
+<ParamField path="stopped_by_error" type="bool" required>
+  Whether transcription was stopped due to an error.
+</ParamField>
+
+---
+
+### on_transcription_error()
+
+Called when a transcription error occurs.
+
+```python
+def on_transcription_error(self, message: str) -> None:
+    print(f"Transcription error: {message}")
+```
+
+#### Parameters
+
+<ParamField path="message" type="str" required>
+  Error message describing what went wrong.
+</ParamField>
+
+---
+
+## SIP/Dialout Events
+
+### on_dialin_ready()
+
+Called when dial-in is ready.
+
+```python
+def on_dialin_ready(self, sip_endpoint: str) -> None:
+    print(f"Dial in to: {sip_endpoint}")
+```
+
+#### Parameters
+
+<ParamField path="sip_endpoint" type="str" required>
+  SIP endpoint URI for dialing in.
+</ParamField>
+
+---
+
+### on_dialout_connected()
+
+Called when a dialout connection is established.
+
+```python
+def on_dialout_connected(self, data: Mapping[str, Any]) -> None:
+    print(f"Dialout connected: {data}")
+```
+
+#### Parameters
+
+<ParamField path="data" type="Mapping[str, Any]" required>
+  Dictionary containing dialout connection information.
+</ParamField>
+
+---
+
+### on_dialout_answered()
+
+Called when a dialout call is answered.
+
+```python
+def on_dialout_answered(self, data: Mapping[str, Any]) -> None:
+    print(f"Dialout answered: {data}")
+```
+
+#### Parameters
+
+<ParamField path="data" type="Mapping[str, Any]" required>
+  Dictionary containing dialout answer information.
+</ParamField>
+
+---
+
+### on_dialout_stopped()
+
+Called when a dialout call stops.
+
+```python
+def on_dialout_stopped(self, data: Mapping[str, Any]) -> None:
+    print(f"Dialout stopped: {data}")
+```
+
+#### Parameters
+
+<ParamField path="data" type="Mapping[str, Any]" required>
+  Dictionary containing dialout stop information.
+</ParamField>
+
+---
+
+### on_dialout_error()
+
+Called when a dialout error occurs.
+
+```python
+def on_dialout_error(self, data: Mapping[str, Any]) -> None:
+    print(f"Dialout error: {data}")
+```
+
+#### Parameters
+
+<ParamField path="data" type="Mapping[str, Any]" required>
+  Dictionary containing dialout error information.
+</ParamField>
+
+---
+
+### on_dialout_warning()
+
+Called when a dialout warning occurs.
+
+```python
+def on_dialout_warning(self, data: Mapping[str, Any]) -> None:
+    print(f"Dialout warning: {data}")
+```
+
+#### Parameters
+
+<ParamField path="data" type="Mapping[str, Any]" required>
+  Dictionary containing dialout warning information.
+</ParamField>
+
+---
+
+## Messaging Events
+
+### on_app_message()
+
+Called when an application message is received.
+
+```python
+def on_app_message(self, message: Any, sender: str) -> None:
+    print(f"Message from {sender}: {message}")
+```
+
+#### Parameters
+
+<ParamField path="message" type="Any" required>
+  The message payload (can be any type sent via `send_app_message()`).
+</ParamField>
+
+<ParamField path="sender" type="str" required>
+  Participant ID of the message sender.
+</ParamField>
+
+---
+
+## Network Events
+
+### on_network_stats_updated()
+
+Called when network statistics are updated.
+
+```python
+def on_network_stats_updated(self, stats: Mapping[str, Any]) -> None:
+    latest = stats.get('stats', {}).get('latest', {})
+    print(f"Send bitrate: {latest.get('videoSendBitsPerSecond')}")
+    print(f"Receive bitrate: {latest.get('videoRecvBitsPerSecond')}")
+```
+
+#### Parameters
+
+<ParamField path="stats" type="Mapping[str, Any]" required>
+  Dictionary containing network statistics including bitrates, packet loss, and latency.
+</ParamField>
+
+---
+
+## Complete Example
+
+```python
+from daily import Daily, CallClient, EventHandler, LogLevel
+from typing import Mapping, Any
+
+class BotEventHandler(EventHandler):
+    """Custom event handler for a Daily bot."""
+    
+    def __init__(self):
+        super().__init__()
+        self.participants = {}
+    
+    def on_call_state_updated(self, state: str) -> None:
+        print(f"[Call] State changed to: {state}")
+    
+    def on_participant_joined(self, participant: Mapping[str, Any]) -> None:
+        participant_id = participant['id']
+        user_name = participant.get('info', {}).get('userName', 'Unknown')
+        self.participants[participant_id] = participant
+        print(f"[Participant] {user_name} joined (ID: {participant_id})")
+    
+    def on_participant_left(self, participant: Mapping[str, Any], reason: str) -> None:
+        participant_id = participant['id']
+        user_name = participant.get('info', {}).get('userName', 'Unknown')
+        if participant_id in self.participants:
+            del self.participants[participant_id]
+        print(f"[Participant] {user_name} left - {reason}")
+    
+    def on_participant_updated(self, participant: Mapping[str, Any]) -> None:
+        participant_id = participant['id']
+        self.participants[participant_id] = participant
+        print(f"[Participant] {participant_id} updated")
+    
+    def on_active_speaker_changed(self, participant: Mapping[str, Any]) -> None:
+        speaker_id = participant.get('participantId')
+        if speaker_id and speaker_id in self.participants:
+            user_name = self.participants[speaker_id].get('info', {}).get('userName', 'Unknown')
+            print(f"[Audio] Active speaker: {user_name}")
+    
+    def on_transcription_message(self, message: Mapping[str, Any]) -> None:
+        participant_id = message.get('participantId')
+        text = message.get('text', '')
+        is_final = message.get('isFinal', False)
+        
+        user_name = 'Unknown'
+        if participant_id and participant_id in self.participants:
+            user_name = self.participants[participant_id].get('info', {}).get('userName', 'Unknown')
+        
+        status = "[FINAL]" if is_final else "[PARTIAL]"
+        print(f"[Transcription] {status} {user_name}: {text}")
+    
+    def on_app_message(self, message: Any, sender: str) -> None:
+        user_name = 'Unknown'
+        if sender in self.participants:
+            user_name = self.participants[sender].get('info', {}).get('userName', 'Unknown')
+        print(f"[Message] {user_name}: {message}")
+    
+    def on_error(self, message: str) -> None:
+        print(f"[Error] {message}")
+    
+    def on_recording_started(self, status: Mapping[str, Any]) -> None:
+        stream_id = status.get('streamId', 'unknown')
+        print(f"[Recording] Started - {stream_id}")
+    
+    def on_recording_stopped(self, stream_id: str) -> None:
+        print(f"[Recording] Stopped - {stream_id}")
+    
+    def on_network_stats_updated(self, stats: Mapping[str, Any]) -> None:
+        # Optionally log network stats (can be verbose)
+        pass
+
+# Usage
+Daily.init(log_level=LogLevel.Info)
+
+event_handler = BotEventHandler()
+client = CallClient(event_handler=event_handler)
+
+client.join(
+    meeting_url="https://your-domain.daily.co/room",
+    client_settings={"userName": "Bot"}
+)
+
+# ... run your bot logic ...
+
+client.leave()
+Daily.deinit()
+```

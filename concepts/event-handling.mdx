@@ -1,0 +1,539 @@
+---
+title: 'Event Handling'
+description: 'Respond to call events with the EventHandler class'
+---
+
+The `EventHandler` class provides a callback-based interface for responding to events during a Daily call. By subclassing `EventHandler` and overriding its methods, you can react to participants joining, call state changes, media updates, and more.
+
+## Creating an Event Handler
+
+Subclass `EventHandler` and override the methods for events you want to handle:
+
+```python
+from daily import EventHandler, CallClient
+
+class MyEventHandler(EventHandler):
+    def on_participant_joined(self, participant):
+        print(f"Participant joined: {participant['info']['userName']}")
+    
+    def on_participant_left(self, participant, reason):
+        print(f"Participant left: {participant['info']['userName']} ({reason})")
+
+# Create client with event handler
+client = CallClient(event_handler=MyEventHandler())
+```
+
+## Event-Driven Architecture
+
+The Daily Python SDK uses an event-driven architecture where your `EventHandler` methods are called automatically when events occur. This allows you to:
+
+- React to call state changes in real-time
+- Monitor participant activity
+- Handle errors and warnings
+- Process transcription and recording events
+- Receive network statistics
+
+<Note>
+Event handler methods are called from the Daily SDK's internal thread. If you need to update UI or shared state, ensure proper thread synchronization.
+</Note>
+
+## Call State Events
+
+### on_call_state_updated()
+
+Called when the call state changes:
+
+```python
+def on_call_state_updated(self, state: str) -> None
+```
+
+**States:** `"joining"`, `"joined"`, `"leaving"`, `"left"`
+
+**Example:**
+
+```python
+class MyEventHandler(EventHandler):
+    def on_call_state_updated(self, state):
+        if state == "joined":
+            print("Successfully joined the call")
+        elif state == "left":
+            print("Left the call")
+```
+
+### on_error()
+
+Called when an error occurs:
+
+```python
+def on_error(self, message: str) -> None
+```
+
+**Example:**
+
+```python
+def on_error(self, message):
+    print(f"Error occurred: {message}")
+```
+
+## Participant Events
+
+### on_participant_joined()
+
+Called when a participant joins the call:
+
+```python
+def on_participant_joined(self, participant: Mapping[str, Any]) -> None
+```
+
+**Example:**
+
+```python
+def on_participant_joined(self, participant):
+    info = participant.get('info', {})
+    user_name = info.get('userName', 'Unknown')
+    is_local = info.get('isLocal', False)
+    
+    if not is_local:
+        print(f"Remote participant joined: {user_name}")
+```
+
+### on_participant_left()
+
+Called when a participant leaves the call:
+
+```python
+def on_participant_left(self, participant: Mapping[str, Any], reason: str) -> None
+```
+
+**Example:**
+
+```python
+def on_participant_left(self, participant, reason):
+    info = participant.get('info', {})
+    user_name = info.get('userName', 'Unknown')
+    print(f"{user_name} left ({reason})")
+```
+
+### on_participant_updated()
+
+Called when participant properties change (e.g., mute state, permissions):
+
+```python
+def on_participant_updated(self, participant: Mapping[str, Any]) -> None
+```
+
+**Example:**
+
+```python
+def on_participant_updated(self, participant):
+    info = participant.get('info', {})
+    if not info.get('isLocal', True):
+        permissions = info.get('permissions', {})
+        print(f"Participant permissions updated: {permissions}")
+```
+
+### on_participant_counts_updated()
+
+Called when the count of participants changes:
+
+```python
+def on_participant_counts_updated(self, counts: Mapping[str, Any]) -> None
+```
+
+**Example:**
+
+```python
+def on_participant_counts_updated(self, counts):
+    present = counts.get('present', 0)
+    print(f"Total participants: {present}")
+```
+
+### on_active_speaker_changed()
+
+Called when the active speaker changes:
+
+```python
+def on_active_speaker_changed(self, participant: Mapping[str, Any]) -> None
+```
+
+## Media Events
+
+### on_inputs_updated()
+
+Called when local input settings change:
+
+```python
+def on_inputs_updated(self, input_settings: Mapping[str, Any]) -> None
+```
+
+**Example:**
+
+```python
+def on_inputs_updated(self, input_settings):
+    camera = input_settings.get('camera', {})
+    microphone = input_settings.get('microphone', {})
+    print(f"Camera enabled: {camera.get('isEnabled')}")
+    print(f"Microphone enabled: {microphone.get('isEnabled')}")
+```
+
+### on_publishing_updated()
+
+Called when publishing settings change:
+
+```python
+def on_publishing_updated(self, publishing_settings: Mapping[str, Any]) -> None
+```
+
+### on_subscriptions_updated()
+
+Called when subscription settings change:
+
+```python
+def on_subscriptions_updated(self, subscriptions: Mapping[str, Any]) -> None
+```
+
+### on_available_devices_updated()
+
+Called when available media devices change:
+
+```python
+def on_available_devices_updated(self, available_devices: Mapping[str, Any]) -> None
+```
+
+## Recording Events
+
+### on_recording_started()
+
+Called when a recording starts:
+
+```python
+def on_recording_started(self, status: Mapping[str, Any]) -> None
+```
+
+**Example:**
+
+```python
+def on_recording_started(self, status):
+    stream_id = status.get('streamId')
+    print(f"Recording started: {stream_id}")
+```
+
+### on_recording_stopped()
+
+Called when a recording stops:
+
+```python
+def on_recording_stopped(self, stream_id: str) -> None
+```
+
+### on_recording_error()
+
+Called when a recording error occurs:
+
+```python
+def on_recording_error(self, stream_id: str, message: str) -> None
+```
+
+## Live Streaming Events
+
+### on_live_stream_started()
+
+Called when a live stream starts:
+
+```python
+def on_live_stream_started(self, status: Mapping[str, Any]) -> None
+```
+
+### on_live_stream_stopped()
+
+Called when a live stream stops:
+
+```python
+def on_live_stream_stopped(self, stream_id: str) -> None
+```
+
+### on_live_stream_error()
+
+Called when a live stream error occurs:
+
+```python
+def on_live_stream_error(self, stream_id: str, message: str) -> None
+```
+
+### on_live_stream_warning()
+
+Called when a live stream warning occurs:
+
+```python
+def on_live_stream_warning(self, stream_id: str, message: str) -> None
+```
+
+## Transcription Events
+
+### on_transcription_started()
+
+Called when transcription starts:
+
+```python
+def on_transcription_started(self, status: Mapping[str, Any]) -> None
+```
+
+### on_transcription_message()
+
+Called when a transcription message is received:
+
+```python
+def on_transcription_message(self, message: Mapping[str, Any]) -> None
+```
+
+**Example:**
+
+```python
+def on_transcription_message(self, message):
+    text = message.get('text', '')
+    participant_id = message.get('participantId', '')
+    print(f"{participant_id}: {text}")
+```
+
+### on_transcription_stopped()
+
+Called when transcription stops:
+
+```python
+def on_transcription_stopped(self, stopped_by: str, stopped_by_error: bool) -> None
+```
+
+### on_transcription_error()
+
+Called when a transcription error occurs:
+
+```python
+def on_transcription_error(self, message: str) -> None
+```
+
+## Dial-in/Dial-out Events
+
+### on_dialin_ready()
+
+Called when dial-in is ready:
+
+```python
+def on_dialin_ready(self, sip_endpoint: str) -> None
+```
+
+### on_dialout_connected()
+
+Called when a dial-out connection is established:
+
+```python
+def on_dialout_connected(self, data: Mapping[str, Any]) -> None
+```
+
+### on_dialout_answered()
+
+Called when a dial-out call is answered:
+
+```python
+def on_dialout_answered(self, data: Mapping[str, Any]) -> None
+```
+
+### on_dialout_stopped()
+
+Called when a dial-out call stops:
+
+```python
+def on_dialout_stopped(self, data: Mapping[str, Any]) -> None
+```
+
+### on_dialout_error()
+
+Called when a dial-out error occurs:
+
+```python
+def on_dialout_error(self, data: Mapping[str, Any]) -> None
+```
+
+### on_dialout_warning()
+
+Called when a dial-out warning occurs:
+
+```python
+def on_dialout_warning(self, data: Mapping[str, Any]) -> None
+```
+
+## Messaging Events
+
+### on_app_message()
+
+Called when an app message is received:
+
+```python
+def on_app_message(self, message: Any, sender: str) -> None
+```
+
+**Example:**
+
+```python
+def on_app_message(self, message, sender):
+    print(f"Message from {sender}: {message}")
+```
+
+## Network Events
+
+### on_network_stats_updated()
+
+Called periodically with network statistics:
+
+```python
+def on_network_stats_updated(self, stats: Mapping[str, Any]) -> None
+```
+
+**Example:**
+
+```python
+def on_network_stats_updated(self, stats):
+    latest = stats.get('latest', {})
+    video_send = latest.get('videoSendPacketLoss', 0)
+    print(f"Video packet loss: {video_send}%")
+```
+
+## Complete Example
+
+Here's a complete example showing a custom event handler in action:
+
+```python
+import asyncio
+from daily import Daily, CallClient, EventHandler
+
+class CallMonitor(EventHandler):
+    def __init__(self):
+        super().__init__()
+        self.participants = {}
+    
+    def on_call_state_updated(self, state):
+        print(f"Call state: {state}")
+    
+    def on_participant_joined(self, participant):
+        info = participant.get('info', {})
+        participant_id = participant.get('id')
+        user_name = info.get('userName', 'Unknown')
+        is_local = info.get('isLocal', False)
+        
+        self.participants[participant_id] = user_name
+        
+        if not is_local:
+            print(f"\n✓ {user_name} joined")
+            print(f"Total participants: {len(self.participants)}")
+    
+    def on_participant_left(self, participant, reason):
+        info = participant.get('info', {})
+        participant_id = participant.get('id')
+        user_name = info.get('userName', 'Unknown')
+        
+        if participant_id in self.participants:
+            del self.participants[participant_id]
+        
+        print(f"✗ {user_name} left ({reason})")
+        print(f"Total participants: {len(self.participants)}")
+    
+    def on_participant_updated(self, participant):
+        info = participant.get('info', {})
+        if not info.get('isLocal', True):
+            user_name = info.get('userName', 'Unknown')
+            media = participant.get('media', {})
+            mic_state = media.get('microphone', {}).get('state')
+            cam_state = media.get('camera', {}).get('state')
+            print(f"{user_name} - mic: {mic_state}, camera: {cam_state}")
+    
+    def on_error(self, message):
+        print(f"ERROR: {message}")
+    
+    def on_transcription_message(self, message):
+        text = message.get('text', '')
+        participant_id = message.get('participantId', '')
+        user_name = self.participants.get(participant_id, 'Unknown')
+        print(f"[{user_name}]: {text}")
+
+class MonitorApp:
+    def __init__(self, meeting_url):
+        self.meeting_url = meeting_url
+        self.event_handler = CallMonitor()
+        self.client = CallClient(event_handler=self.event_handler)
+        self.joined = asyncio.Event()
+    
+    def on_joined(self, data, error):
+        if error:
+            print(f"Failed to join: {error}")
+        else:
+            print("Successfully joined!")
+        self.joined.set()
+    
+    async def run(self):
+        # Join the call
+        self.client.join(
+            self.meeting_url,
+            client_settings={"inputs": {"camera": False, "microphone": False}},
+            completion=self.on_joined
+        )
+        
+        # Wait for join
+        await self.joined.wait()
+        
+        # Keep running until interrupted
+        try:
+            while True:
+                await asyncio.sleep(1)
+        except asyncio.CancelledError:
+            pass
+    
+    def cleanup(self):
+        self.client.leave()
+        self.client.release()
+
+# Run the monitor
+async def main():
+    Daily.init()
+    
+    app = MonitorApp("https://example.daily.co/room")
+    
+    try:
+        await app.run()
+    except KeyboardInterrupt:
+        print("\nExiting...")
+    finally:
+        app.cleanup()
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Keep event handlers fast">
+    Event handler methods should complete quickly. For long-running operations, delegate to a background thread or task queue.
+  </Accordion>
+  
+  <Accordion title="Handle thread safety">
+    Event callbacks are invoked from the SDK's internal thread. Use proper synchronization (locks, queues, thread-safe data structures) when accessing shared state.
+  </Accordion>
+  
+  <Accordion title="Don't block the event thread">
+    Avoid blocking operations (network requests, file I/O, sleep) in event handlers. Use async patterns or background workers instead.
+  </Accordion>
+  
+  <Accordion title="Log errors for debugging">
+    Always implement `on_error()` to catch and log SDK errors during development.
+  </Accordion>
+</AccordionGroup>
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="CallClient" icon="phone" href="/concepts/call-client">
+    Learn about the CallClient class
+  </Card>
+  <Card title="Virtual Devices" icon="microchip" href="/concepts/virtual-devices">
+    Work with virtual cameras and microphones
+  </Card>
+</CardGroup>

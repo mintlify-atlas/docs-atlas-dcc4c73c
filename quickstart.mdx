@@ -1,80 +1,409 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quickstart
+description: Build your first Daily Python application in minutes
 ---
 
-## Get started in three steps
+This guide will walk you through creating a simple application that joins a Daily meeting and receives audio from other participants.
 
-Get your documentation site running locally and make your first customization.
+## Prerequisites
 
-### Step 1: Set up your local environment
+- Daily Python SDK installed (see [Installation](/installation))
+- A Daily room URL (create one at [https://dashboard.daily.co](https://dashboard.daily.co))
+- Python 3.7 or newer
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
+## Your First Application
+
+Let's build a simple audio receiver that joins a meeting and listens to other participants.
+
+<Steps>
+  <Step title="Initialize the SDK">
+    Every Daily Python application must call `Daily.init()` before creating any clients or devices.
     
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
+    ```python
+    from daily import Daily, CallClient, EventHandler
+    import threading
     
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
+    # Initialize the Daily SDK
+    Daily.init()
+    ```
     
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+    <Tip>
+      You can pass optional parameters to `init()`:
+      - `worker_threads`: Number of worker threads (default: 2)
+      - `log_level`: Logging level from `LogLevel` enum (default: `LogLevel.Off`)
+    </Tip>
+  </Step>
+  
+  <Step title="Create an Event Handler">
+    Event handlers let you respond to meeting events like participants joining or errors occurring.
+    
+    ```python
+    class MyEventHandler(EventHandler):
+        def on_participant_joined(self, participant):
+            print(f"Participant joined: {participant.get('info', {}).get('userName', 'Unknown')}")
+        
+        def on_participant_left(self, participant, reason):
+            print(f"Participant left: {participant.get('info', {}).get('userName', 'Unknown')}")
+        
+        def on_error(self, error):
+            print(f"Error occurred: {error}")
+    ```
+  </Step>
+  
+  <Step title="Create a CallClient">
+    The `CallClient` is your main interface for interacting with Daily meetings.
+    
+    ```python
+    # Create event handler
+    event_handler = MyEventHandler()
+    
+    # Create call client with event handler
+    client = CallClient(event_handler=event_handler)
+    ```
+  </Step>
+  
+  <Step title="Configure Subscription Settings">
+    Set up subscription profiles to control what media you receive from other participants.
+    
+    ```python
+    # Subscribe to audio only, not video
+    client.update_subscription_profiles({
+        "base": {
+            "camera": "unsubscribed",
+            "microphone": "subscribed"
+        }
+    })
+    ```
+  </Step>
+  
+  <Step title="Join a Meeting">
+    Join a Daily meeting using a room URL. The join operation is asynchronous.
+    
+    ```python
+    import threading
+    
+    # Event to signal when join is complete
+    join_event = threading.Event()
+    
+    def on_joined(data, error):
+        if error:
+            print(f"Failed to join: {error}")
+        else:
+            print("Successfully joined meeting!")
+        join_event.set()
+    
+    # Join the meeting
+    meeting_url = "https://your-domain.daily.co/room-name"
+    client.join(meeting_url, completion=on_joined)
+    
+    # Wait for join to complete
+    join_event.wait()
+    ```
+  </Step>
+  
+  <Step title="Create a Virtual Speaker Device">
+    To receive audio from the meeting, create a virtual speaker device.
+    
+    ```python
+    SAMPLE_RATE = 16000
+    NUM_CHANNELS = 1
+    
+    # Create virtual speaker
+    speaker = Daily.create_speaker_device(
+        "my-speaker",
+        sample_rate=SAMPLE_RATE,
+        channels=NUM_CHANNELS
+    )
+    
+    # Select it as the output device
+    Daily.select_speaker_device("my-speaker")
+    ```
+  </Step>
+  
+  <Step title="Read Audio Frames">
+    Read audio data from the speaker device in a loop.
+    
+    ```python
+    import sys
+    
+    try:
+        while True:
+            # Read 100ms of audio frames
+            buffer = speaker.read_frames(int(SAMPLE_RATE / 10))
+            if len(buffer) > 0:
+                # Process audio data (e.g., write to file)
+                sys.stdout.buffer.write(buffer)
+    except KeyboardInterrupt:
+        print("Stopping...")
+    ```
+  </Step>
+  
+  <Step title="Clean Up">
+    Always clean up resources when done.
+    
+    ```python
+    # Leave the meeting
+    client.leave()
+    
+    # Release the client
+    client.release()
+    ```
+  </Step>
+</Steps>
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+## Complete Example
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+Here's the complete audio receiver application:
 
-### Step 3: Go live
+```python audio_receiver.py
+import sys
+import threading
+from daily import Daily, CallClient, EventHandler
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+SAMPLE_RATE = 16000
+NUM_CHANNELS = 1
 
-## Next steps
+class MyEventHandler(EventHandler):
+    def on_participant_joined(self, participant):
+        print(f"Participant joined: {participant.get('info', {}).get('userName', 'Unknown')}")
+    
+    def on_participant_left(self, participant, reason):
+        print(f"Participant left: {participant.get('info', {}).get('userName', 'Unknown')}")
+    
+    def on_error(self, error):
+        print(f"Error: {error}")
 
-Now that you have your docs running, explore these key features:
+class AudioReceiver:
+    def __init__(self):
+        self.speaker = Daily.create_speaker_device(
+            "my-speaker",
+            sample_rate=SAMPLE_RATE,
+            channels=NUM_CHANNELS
+        )
+        Daily.select_speaker_device("my-speaker")
+        
+        self.client = CallClient(event_handler=MyEventHandler())
+        self.client.update_subscription_profiles({
+            "base": {"camera": "unsubscribed", "microphone": "subscribed"}
+        })
+        
+        self.join_event = threading.Event()
+        self.running = False
+    
+    def on_joined(self, data, error):
+        if error:
+            print(f"Failed to join: {error}")
+        else:
+            print("Successfully joined meeting!")
+            self.running = True
+        self.join_event.set()
+    
+    def join(self, meeting_url):
+        self.client.join(meeting_url, completion=self.on_joined)
+        self.join_event.wait()
+    
+    def receive_audio(self):
+        if not self.running:
+            return
+        
+        try:
+            while self.running:
+                buffer = self.speaker.read_frames(int(SAMPLE_RATE / 10))
+                if len(buffer) > 0:
+                    sys.stdout.buffer.write(buffer)
+        except KeyboardInterrupt:
+            print("\nStopping...", file=sys.stderr)
+    
+    def leave(self):
+        self.running = False
+        self.client.leave()
+        self.client.release()
+
+if __name__ == "__main__":
+    Daily.init()
+    
+    receiver = AudioReceiver()
+    
+    # Replace with your meeting URL
+    meeting_url = "https://your-domain.daily.co/room-name"
+    
+    receiver.join(meeting_url)
+    receiver.receive_audio()
+    receiver.leave()
+```
+
+## Running the Example
+
+<Steps>
+  <Step title="Save the code">
+    Save the code above to a file named `audio_receiver.py`
+  </Step>
+  
+  <Step title="Update the meeting URL">
+    Replace the placeholder URL with your actual Daily room URL:
+    ```python
+    meeting_url = "https://your-domain.daily.co/your-room-name"
+    ```
+  </Step>
+  
+  <Step title="Run the application">
+    ```bash
+    python audio_receiver.py > output.raw
+    ```
+    
+    This will join the meeting and save received audio to `output.raw`.
+  </Step>
+  
+  <Step title="Stop the application">
+    Press `Ctrl+C` to stop recording and leave the meeting.
+  </Step>
+</Steps>
+
+## Sending Audio
+
+To send audio into a meeting, create a virtual microphone device instead:
+
+```python audio_sender.py
+import threading
+from daily import Daily, CallClient
+
+SAMPLE_RATE = 16000
+NUM_CHANNELS = 1
+
+class AudioSender:
+    def __init__(self):
+        # Create virtual microphone
+        self.microphone = Daily.create_microphone_device(
+            "my-mic",
+            sample_rate=SAMPLE_RATE,
+            channels=NUM_CHANNELS
+        )
+        
+        self.client = CallClient()
+        self.client.update_subscription_profiles({
+            "base": {"camera": "unsubscribed", "microphone": "unsubscribed"}
+        })
+        
+        self.join_event = threading.Event()
+    
+    def on_joined(self, data, error):
+        if error:
+            print(f"Failed to join: {error}")
+        else:
+            print("Joined! Sending audio...")
+        self.join_event.set()
+    
+    def join(self, meeting_url):
+        self.client.join(
+            meeting_url,
+            client_settings={
+                "inputs": {
+                    "camera": False,
+                    "microphone": {
+                        "isEnabled": True,
+                        "settings": {"deviceId": "my-mic"}
+                    }
+                }
+            },
+            completion=self.on_joined
+        )
+        self.join_event.wait()
+    
+    def send_audio(self, audio_data):
+        # Send audio frames to the meeting
+        self.microphone.write_frames(audio_data)
+    
+    def leave(self):
+        self.client.leave()
+        self.client.release()
+
+if __name__ == "__main__":
+    Daily.init()
+    
+    sender = AudioSender()
+    sender.join("https://your-domain.daily.co/room-name")
+    
+    # Send audio data (example: silence)
+    import time
+    silence = b'\x00' * (SAMPLE_RATE // 10 * NUM_CHANNELS * 2)  # 100ms of silence
+    
+    try:
+        while True:
+            sender.send_audio(silence)
+            time.sleep(0.1)  # Send every 100ms
+    except KeyboardInterrupt:
+        sender.leave()
+```
+
+## Next Steps
+
+Now that you've built your first Daily Python application, explore more advanced features:
 
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="Event Handling" icon="bell" href="/concepts/event-handling">
+    Learn about all available event callbacks
+  </Card>
+  <Card title="Audio Processing" icon="waveform" href="/guides/audio-processing">
+    Process and manipulate audio streams
+  </Card>
+  <Card title="Video Support" icon="video" href="/guides/video-processing">
+    Send and receive video frames
+  </Card>
+  <Card title="Code Examples" icon="code" href="https://github.com/daily-co/daily-python/tree/main/demos">
+    Explore real-world examples in the demos directory
+  </Card>
 </CardGroup>
 
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>
+## Common Patterns
+
+### Using Meeting Tokens
+
+For private rooms, pass a meeting token:
+
+```python
+client.join(
+    meeting_url="https://your-domain.daily.co/private-room",
+    meeting_token="your-meeting-token-here",
+    completion=on_joined
+)
+```
+
+### Configuring Client Settings
+
+Customize your participant settings when joining:
+
+```python
+client.join(
+    meeting_url,
+    client_settings={
+        "inputs": {
+            "camera": False,
+            "microphone": {"isEnabled": True}
+        },
+        "publishing": {
+            "camera": False,
+            "microphone": {"isEnabled": True}
+        }
+    },
+    completion=on_joined
+)
+```
+
+### Error Handling
+
+Always implement proper error handling:
+
+```python
+class RobustEventHandler(EventHandler):
+    def on_error(self, error):
+        print(f"Daily error: {error}", file=sys.stderr)
+        # Implement retry logic or cleanup
+    
+    def on_participant_left(self, participant, reason):
+        if reason == "error":
+            print(f"Participant left due to error: {participant}")
+```
+
+<Tip>
+  For production applications, consider implementing exponential backoff for reconnection attempts and comprehensive logging.
+</Tip>

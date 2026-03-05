@@ -1,0 +1,263 @@
+---
+title: "VideoFrame"
+description: "Video frame class for receiving raw video frames in renderers"
+---
+
+The `VideoFrame` class represents a single video frame received in video renderer callbacks. It provides access to the raw video buffer and frame metadata.
+
+## Class Definition
+
+```python
+class VideoFrame:
+    @property
+    def buffer(self) -> bytes: ...
+    @property
+    def width(self) -> int: ...
+    @property
+    def height(self) -> int: ...
+    @property
+    def timestamp_us(self) -> int: ...
+    @property
+    def color_format(self) -> str: ...
+```
+
+## Properties
+
+### buffer
+
+```python
+@property
+def buffer(self) -> bytes
+```
+
+The raw video frame data as bytes. The format depends on the `color_format` property.
+
+**Returns:** `bytes` - Raw video buffer
+
+### width
+
+```python
+@property
+def width(self) -> int
+```
+
+The width of the video frame in pixels.
+
+**Returns:** `int` - Frame width in pixels
+
+### height
+
+```python
+@property
+def height(self) -> int
+```
+
+The height of the video frame in pixels.
+
+**Returns:** `int` - Frame height in pixels
+
+### timestamp_us
+
+```python
+@property
+def timestamp_us(self) -> int
+```
+
+The frame timestamp in microseconds.
+
+**Returns:** `int` - Timestamp in microseconds
+
+### color_format
+
+```python
+@property
+def color_format(self) -> str
+```
+
+The color format of the video buffer (e.g., "RGBA", "RGB", "I420").
+
+**Returns:** `str` - Color format string
+
+## Usage in Video Renderers
+
+`VideoFrame` objects are received in video renderer callbacks that you set with `set_video_renderer()`.
+
+### Example: Basic Video Renderer
+
+```python
+from daily import CallClient, VideoFrame
+
+def video_callback(participant_id: str, video_frame: VideoFrame, video_source: str):
+    # Access video frame metadata
+    print(f"Width: {video_frame.width}")
+    print(f"Height: {video_frame.height}")
+    print(f"Timestamp: {video_frame.timestamp_us} μs")
+    print(f"Color format: {video_frame.color_format}")
+    
+    # Get raw video buffer
+    buffer = video_frame.buffer
+    print(f"Buffer size: {len(buffer)} bytes")
+
+# Set up video renderer
+client = CallClient()
+client.set_video_renderer(
+    participant_id="participant-id",
+    callback=video_callback,
+    color_format="RGBA"
+)
+```
+
+### Example: Saving Frames as Images
+
+```python
+from daily import CallClient, VideoFrame
+from PIL import Image
+import io
+
+class VideoFrameSaver:
+    def __init__(self):
+        self.frame_count = 0
+    
+    def video_callback(self, participant_id: str, video_frame: VideoFrame, video_source: str):
+        # Convert RGBA buffer to PIL Image
+        if video_frame.color_format == "RGBA":
+            image = Image.frombytes(
+                'RGBA',
+                (video_frame.width, video_frame.height),
+                video_frame.buffer
+            )
+            
+            # Save frame
+            image.save(f"frame_{self.frame_count:04d}.png")
+            self.frame_count += 1
+            print(f"Saved frame {self.frame_count}")
+
+# Usage
+saver = VideoFrameSaver()
+client = CallClient()
+client.set_video_renderer(
+    participant_id="participant-id",
+    callback=saver.video_callback,
+    color_format="RGBA"
+)
+```
+
+### Example: Processing Video with OpenCV
+
+```python
+from daily import CallClient, VideoFrame
+import numpy as np
+import cv2
+
+def process_video_frame(participant_id: str, video_frame: VideoFrame, video_source: str):
+    # Convert RGBA buffer to numpy array
+    if video_frame.color_format == "RGBA":
+        # Create numpy array from buffer
+        frame_array = np.frombuffer(video_frame.buffer, dtype=np.uint8)
+        frame_array = frame_array.reshape(
+            (video_frame.height, video_frame.width, 4)
+        )
+        
+        # Convert RGBA to BGR for OpenCV
+        bgr_frame = cv2.cvtColor(frame_array, cv2.COLOR_RGBA2BGR)
+        
+        # Apply processing (e.g., edge detection)
+        edges = cv2.Canny(bgr_frame, 100, 200)
+        
+        # Display result
+        cv2.imshow('Edges', edges)
+        cv2.waitKey(1)
+
+client = CallClient()
+client.set_video_renderer(
+    participant_id="participant-id",
+    callback=process_video_frame,
+    color_format="RGBA"
+)
+```
+
+### Example: Real-time Video Display
+
+```python
+from daily import CallClient, VideoFrame
+import numpy as np
+import cv2
+
+class VideoDisplay:
+    def __init__(self, window_name: str):
+        self.window_name = window_name
+        cv2.namedWindow(window_name)
+    
+    def video_callback(self, participant_id: str, video_frame: VideoFrame, video_source: str):
+        # Convert to numpy array
+        frame = np.frombuffer(video_frame.buffer, dtype=np.uint8)
+        frame = frame.reshape((video_frame.height, video_frame.width, 4))
+        
+        # Convert RGBA to BGR for display
+        bgr_frame = cv2.cvtColor(frame, cv2.COLOR_RGBA2BGR)
+        
+        # Add timestamp overlay
+        timestamp_ms = video_frame.timestamp_us // 1000
+        cv2.putText(
+            bgr_frame,
+            f"Timestamp: {timestamp_ms}ms",
+            (10, 30),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1,
+            (0, 255, 0),
+            2
+        )
+        
+        # Display frame
+        cv2.imshow(self.window_name, bgr_frame)
+        cv2.waitKey(1)
+    
+    def close(self):
+        cv2.destroyWindow(self.window_name)
+
+# Usage
+display = VideoDisplay("Participant Video")
+client = CallClient()
+client.set_video_renderer(
+    participant_id="participant-id",
+    callback=display.video_callback,
+    color_format="RGBA"
+)
+
+# Later: cleanup
+display.close()
+```
+
+## Color Formats
+
+The `color_format` property indicates how the pixel data is arranged in the buffer:
+
+- **RGBA**: 4 bytes per pixel (Red, Green, Blue, Alpha)
+- **RGB**: 3 bytes per pixel (Red, Green, Blue)
+- **I420**: Planar YUV format (Y plane, then U and V planes)
+
+### Buffer Size Calculation
+
+For RGBA format:
+```python
+buffer_size = width * height * 4  # 4 bytes per pixel
+```
+
+For RGB format:
+```python
+buffer_size = width * height * 3  # 3 bytes per pixel
+```
+
+## Notes
+
+- `VideoFrame` objects are read-only and provided by the SDK
+- Video frames are delivered continuously while the video renderer is active
+- The frame rate depends on the participant's video stream
+- Large video buffers may impact memory usage - process or discard frames promptly
+- The `timestamp_us` can be used to synchronize video with audio or other streams
+
+## See Also
+
+- [CallClient.set_video_renderer()](/api/call-client#set_video_renderer) - Set up video renderer callbacks
+- [AudioData](/api/audio-data) - Audio frame data for audio renderers
+- [VirtualCameraDevice](/api/virtual-camera) - Send custom video to a call
