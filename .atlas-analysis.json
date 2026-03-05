@@ -1,0 +1,129 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "Daily Python SDK",
+  "projectDescription": "Python SDK for building video and audio calling applications with Daily's WebRTC infrastructure",
+  "theme": "aspen",
+  "primaryColor": "#94cb04",
+  "lightColor": "#545454",
+  "darkColor": null,
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/call-client",
+              "concepts/event-handling",
+              "concepts/virtual-devices"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/audio-processing",
+              "guides/video-processing",
+              "guides/recording-streaming",
+              "guides/transcription",
+              "guides/custom-tracks",
+              "guides/participant-management"
+            ]
+          },
+          {
+            "group": "Examples",
+            "pages": [
+              "examples/overview",
+              "examples/audio-bots",
+              "examples/video-applications",
+              "examples/integrations"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Core Classes",
+            "pages": [
+              "api/daily",
+              "api/call-client",
+              "api/event-handler"
+            ]
+          },
+          {
+            "group": "Virtual Devices",
+            "pages": [
+              "api/virtual-camera",
+              "api/virtual-microphone",
+              "api/virtual-speaker"
+            ]
+          },
+          {
+            "group": "Media",
+            "pages": [
+              "api/audio-data",
+              "api/video-frame",
+              "api/custom-audio"
+            ]
+          },
+          {
+            "group": "Utilities",
+            "pages": [
+              "api/native-vad",
+              "api/log-level"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Join Daily video/audio meetings as a participant",
+    "Send and receive real-time audio and video streams",
+    "Create virtual camera, microphone, and speaker devices",
+    "Handle meeting events with custom event handlers",
+    "Start and control recordings, live streams, and transcriptions",
+    "Manage participant permissions and settings",
+    "Process audio with built-in Voice Activity Detection (VAD)",
+    "Integrate with AI services for audio/video processing"
+  ],
+  "publicApiSurface": [
+    "Daily.init()",
+    "Daily.deinit()",
+    "Daily.create_camera_device()",
+    "Daily.create_microphone_device()",
+    "Daily.create_speaker_device()",
+    "Daily.create_native_vad()",
+    "CallClient()",
+    "CallClient.join()",
+    "CallClient.leave()",
+    "CallClient.update_inputs()",
+    "CallClient.update_publishing()",
+    "CallClient.update_subscriptions()",
+    "CallClient.set_audio_renderer()",
+    "CallClient.set_video_renderer()",
+    "CallClient.start_recording()",
+    "CallClient.start_live_stream_with_rtmp_urls()",
+    "CallClient.start_transcription()",
+    "CallClient.send_app_message()",
+    "EventHandler.on_participant_joined()",
+    "EventHandler.on_participant_left()",
+    "EventHandler.on_call_state_updated()",
+    "VirtualCameraDevice.write_frame()",
+    "VirtualMicrophoneDevice.write_frames()",
+    "VirtualSpeakerDevice.read_frames()",
+    "CustomAudioSource()",
+    "CustomAudioTrack()",
+    "NativeVad.analyze_frames()"
+  ]
+}
